@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import itertools
+import sys
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -19,7 +20,8 @@ import astra
 import tomosipo as ts
 from ts_algorithms import fbp, sirt, tv_min2d, fdk, nag_ls
 
-import red_psm_models
+import models_denoiser
+sys.modules['red_psm_models'] = models_denoiser  # saved checkpoints reference the old module name
 import models
 
 import models_recon_domain
@@ -120,7 +122,12 @@ def generate_theta(P, ang_range=2 * np.pi, period=None):
         ang_range / period) * bit_reversal(p, period) for p in range(period)]))
     theta_golden_angle = repeat_ang_sch(np.array([((
         p * (111.25 / 360) * 2 * np.pi) % (2 * np.pi)) for p in range(period)]))
-    return theta_linear, theta_random, theta_bit_reversal, theta_golden_angle
+    return {
+        'linear': theta_linear,
+        'random': theta_random,
+        'bit_reversal': theta_bit_reversal,
+        'golden_angle': theta_golden_angle,
+    }
 
 
 def construct_pi_symm_g(g_radon, g_radon_pi_symm, ang_range):
@@ -241,9 +248,9 @@ def denoising_network_loader(
                     model_name + '_model_%s_%s_epochs_%d_num_layers_%d_num_ch_%d%s.pt' %(
                     obj_type, noise_est_type, epochs, num_layers, num_channels, lambda_jr))
             if train_type == 'unet':
-                model_denoiser = red_psm_models.UNet(1, 1, 32).cuda()
+                model_denoiser = models_denoiser.UNet(1, 1, 32).cuda()
             elif train_type in ['dncnn', 'dncnn_jreg', 'dncnn_oracle', 'dncnn_deblur', 'dncnn_limited', 'dncnn_limited_deblur']:
-                model_denoiser = red_psm_models.dncnn(
+                model_denoiser = models_denoiser.dncnn(
                     num_layers, num_channels, filterSize, noise_est_type).cuda()
             else:
                 raise NotImplementedError
@@ -254,7 +261,7 @@ def denoising_network_loader(
                 '/home/berk/Desktop/spatio_temporal/2D_time_variant_tomography/obj_domain_psm/data/denoiser',
                 model_name + '_model_%s_%s_epochs_%d_num_layers_%d_num_ch_%d.pt' %(
                 obj_type, noise_est_type, epochs, num_layers, num_channels))
-            model_denoiser = red_psm_models.dncnn_plinear(
+            model_denoiser = models_denoiser.dncnn_plinear(
                 num_layers, num_channels, filterSize, noise_est_type).cuda()
             patchifier_red = None
         elif denoiser_type == 'patch_based_patchloss':
@@ -264,7 +271,7 @@ def denoising_network_loader(
                 model_name + '_model_%s_%s_num_layers_%d_patch_size_%d_patch_stride_%d_num_ch_%d_epochs_%d.pt' %(
                     obj_type, noise_est_type, num_layers, pSize, pStride, 
                     num_channels, epochs))
-            model_denoiser = red_psm_models.dncnnPatchBased_patchLoss(
+            model_denoiser = models_denoiser.dncnnPatchBased_patchLoss(
                 num_layers, num_channels, filterSize, noise_est_type).cuda()
             patchifier_red = patchifier(pSize, pStride, spatial_dim, 1)
         else:
@@ -482,7 +489,7 @@ def denoising_network_loader_proj(train_type, denoiser_type, pSize, pStride,
                 model_name + '_g_model_%s_%s_epochs_%d_P_static_%d_num_layers_%d_num_ch_%d_noise_std_max_%.2e.pt' %(
                     obj_type, noise_est_type, epochs, P_static, num_layers,
                     num_channels, noise_std_max))
-            model_dncnn = red_psm_models.dncnn(
+            model_dncnn = models_denoiser.dncnn(
                 num_layers, num_channels, filterSize, noise_est_type).cuda()
             patchifier_red = None
         else:

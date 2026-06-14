@@ -1,3 +1,6 @@
+obj_type: 'polymer_binary'  # ['walnut', 'material', 'cardiac_rep_sq', 'LLNL', 'polymer_binary', 'polymer_binary_subint', 'polymer_binary_subint_hardest']
+spatial_dim: 128    # Spatial dim of the recon: d x d, and proj: d (LLNL data: 80)
+P: 64              # Total number of time instances
 output_dim: P
 num_layers_sweep: [7]
 num_channels_sweep: [64]

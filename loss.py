@@ -8,10 +8,9 @@ from torch import nn as nn
 
 import torch_dct as dct
 from pytorch_wavelets import DWTForward, DWTInverse # (or import DWT, IDWT)
-
 from ts_algorithms import fbp, sirt, tv_min2d, fdk, nag_ls
 
-import red_psm_models
+import models_denoiser
 import models
 
 

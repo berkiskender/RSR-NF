@@ -5,8 +5,8 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 import utils
-import loss
-import metrics
+import loss as loss_module
+import metrics as metrics_module
 
 
 def f_update(lmbda, beta, denoiser, f_est, f_nf_est, f, gamma, denoiser_type, mask):
@@ -160,10 +160,10 @@ def learn_NF_SGD_multiview(model, xyt_grid_enc, optimizer, scheduler, criterion,
         loss_var_split = (beta / 2) * torch.linalg.norm(f_nf_est - model.f_est[:, :, time_idx // rep] + model.gamma_est[:, :, time_idx // rep])**2 if beta != 0 else torch.zeros(1).cuda()
         
         # Temporal regularization
-        loss_temp_reg = loss.reg_loss(f_nf_est[..., ::rep], reg_t_loss_type, reg_t_weight) if reg_t_weight != 0 and epoch % (rep * P // sgd_size) == 0 else torch.zeros(1).cuda()
-        
+        loss_temp_reg = loss_module.reg_loss(f_nf_est[..., ::rep], reg_t_loss_type, reg_t_weight) if reg_t_weight != 0 and epoch % (rep * P // sgd_size) == 0 else torch.zeros(1).cuda()
+
         # l1 sparsity model
-        loss_model_reg = loss.model_reg(model, weight_model, type_model_reg) if weight_model != 0 else torch.zeros(1).cuda()
+        loss_model_reg = loss_module.model_reg(model, weight_model, type_model_reg) if weight_model != 0 else torch.zeros(1).cuda()
         
         loss = loss_g + loss_var_split + loss_temp_reg + loss_model_reg
         
@@ -212,7 +212,7 @@ def static_embedding(model, xyt_grid_enc, optimizer, criterion, f_static_embed,
         if epoch % (num_epoch // upd_freq) == 0:
             with torch.no_grad():
                 f_nf_est = model(xyt_grid_enc)
-                metrics, best_psnr_f_static, best_f_static_est = metrics.update_metrics(
+                metrics, best_psnr_f_static, best_f_static_est = metrics_module.update_metrics(
                     f[..., ::rep], model.f_est.squeeze().detach().cpu().numpy(), 
                     f_nf_est.squeeze().detach().cpu().numpy(), metrics, rep, 
                     best_psnr_f_static, best_f_static_est, model)

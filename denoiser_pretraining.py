@@ -11,7 +11,7 @@ from torch import nn as nn
 import torchvision.transforms as T
 
 import utils_misc
-import red_psm_models
+import models_denoiser
 import denoiser_data_load
 
 from jacobian import JacobianReg_l2
@@ -231,15 +231,15 @@ def generate_mask(args):
 
 def load_denoiser(args):
     if 'plinear' in args.denoiser_type:
-        # model = red_psm_models.plinear_denoiser(
+        # model = models_denoiser.plinear_denoiser(
         #     args.numLayers, args.latent_dim, args.spatial_dim, args.est_type=noise_est_type).cuda()
-        model = red_psm_models.dncnn_plinear(
+        model = models_denoiser.dncnn_plinear(
             args.numLayers, args.numChannels, args.filterSize, est_type=args.noise_est_type).cuda()
     elif 'dncnn' in args.denoiser_type:
-        model = red_psm_models.dncnn(
+        model = models_denoiser.dncnn(
             args.numLayers, args.numChannels, args.filterSize, est_type=args.noise_est_type).cuda()
     elif 'unet' in args.denoiser_type:
-        model = red_psm_models.UNet(
+        model = models_denoiser.UNet(
             in_channels=1, out_channels=1, init_features=32).cuda()
     return model
 
@@ -254,9 +254,7 @@ def limited_view_transform(f, P_set):
 
     for i in range(f.shape[0]):
         theta_dict = {}
-        [_, _, theta_dict['bit_reversal'], _] = utils.generate_theta(
-            P, ang_range=np.pi, period=None)
-        theta = theta_dict['bit_reversal']
+        theta = utils.generate_theta(P, ang_range=np.pi, period=None)['bit_reversal']
         g = radon(f[i].squeeze().detach().cpu().numpy(), theta=360 * theta / (2 * np.pi))
         f[i] = alpha * torch.Tensor(
             iradon(g, theta=360*theta/(2*np.pi), filter_name='ramp')).view(

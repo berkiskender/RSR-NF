@@ -1,4 +1,7 @@
 # RED static recon training parameters
+obj_type: 'walnut'  # ['walnut', 'material', 'cardiac_rep_sq', 'LLNL', 'polymer_binary', 'polymer_binary_subint', 'polymer_binary_subint_hardest']
+spatial_dim: 128    # Spatial dim of the recon: d x d, and proj: d (LLNL data: 80)
+P: 256              # Total number of time instances
 num_epoch_sweep: [5000]  # Number of outer iterations for bilinear RED-ADMM
 num_primal_iter_sweep: [100]  # Number of inner GD updates for the primal PSM components
 num_red_iter: [1]  # Number of inner efficient RED updates for f 
@@ -26,15 +29,19 @@ type_model_reg: ['l2'] # ['l1', 'l2']
 sch_thr_step_ratio: [1.0]    # scheduler threshold step ratio
 sch_decay_ratio: [1.0]          # scheduler decay ratio
 
-denoiser_model: 'dncnn'
+denoiser_model: ['dncnn']
 denoiser_type: 'full_img'  # ['full_img', 'full_img_plinear', 'patch_based', 'patch_based_patchloss']
 pSize: [128]               # B=128 for 'full_img'
 pStride: [1]               # S=1 for 'full_img'
-num_layers_denoiser: 6     # 6 layers for 'full_img' denoiser walnut
-num_channels_denoiser: 64  # default: 64 full-img walnut
+num_layers_denoiser: [6]   # 6 layers for 'full_img' denoiser walnut
+num_channels_denoiser: [64]  # default: 64 full-img walnut
 noise_est_type: 'residual' # 'direct' or 'residual'. direct for full-img walnut
 denoiser_epochs: 500       # 500 for walnut full-img, 200 or 100 for cardiac full img, 250 for walnut_normalized
 noise_std: [5.0e-2]        # default: 5e-2
+lambda_jr: [null]
+
+metric_upd_freq: 10
+res_plot_freq: 500
 
 criterion: 'MSE'
 

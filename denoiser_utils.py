@@ -47,7 +47,7 @@ from scipy import ndimage
 import torch
 from torch import nn as nn
 
-import red_psm_models
+import models_denoiser
 
 
 def mask_fov_object(f, spatial_dim):
@@ -236,7 +236,7 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
                 'data/denoiser',
                 model_name + '_model_%s_%s_epochs_%d_num_layers_%d_num_ch_%d.pt' %(
                 obj_type, noise_est_type, epochs, num_layers, num_channels))
-            model_dncnn = red_psm_models.dncnn(
+            model_dncnn = models_denoiser.dncnn(
                 num_layers, num_channels, filterSize, noise_est_type).cuda()
             patchifier_red = None
         elif denoiser_type == 'patch_based_patchloss':
@@ -246,7 +246,7 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
                 model_name + '_model_%s_%s_num_layers_%d_patch_size_%d_patch_stride_%d_num_ch_%d_epochs_%d.pt' %(
                     obj_type, noise_est_type, num_layers, pSize, pStride,
                     num_channels, epochs))
-            model_dncnn = red_psm_models.dncnnPatchBased_patchLoss(
+            model_dncnn = models_denoiser.dncnnPatchBased_patchLoss(
                 num_layers, num_channels, filterSize, noise_est_type).cuda()
             patchifier_red = patchifier(pSize, pStride, spatial_dim, 1)
         else:
