@@ -6,7 +6,7 @@ Implementation of *RSR-NF: Neural Field Regularization by Static Restoration Pri
 
 Dynamic imaging involves the reconstruction of a spatio-temporal object at all times using its undersampled measurements. In particular, in dynamic computed tomography (dCT), only a single projection at one view angle is available at a time, making the inverse problem very challenging. Moreover, ground-truth dynamic data is usually either unavailable or too scarce to be used for supervised learning techniques. To tackle this problem, we propose RSR-NF, which uses a neural field (NF) to represent the dynamic object and, using the Regularization-by-Denoising (RED) framework, incorporates an additional static deep spatial prior into a variational formulation via a learned restoration operator. We use an ADMM-based algorithm with variable splitting to efficiently optimize the variational objective. We compare RSR-NF to three alternatives: NF with only temporal regularization; a recent method combining a partially-separable low-rank representation with RED using a denoiser pretrained on static data; and a deep-image prior-based model. The first comparison demonstrates the reconstruction improvements achieved by combining the NF representation with static restoration priors, whereas the other two demonstrate the improvement over state-of-the art techniques for dCT. 
 
-![alt text](https://github.com/berkiskender/RED-PSM/blob/master/red_psm.jpeg?raw=true)
+<img width="3090" height="1620" alt="image" src="https://github.com/user-attachments/assets/f52ed828-aa08-4ede-93b0-42272a5b3c10" />
 
 ## Parameter configurations
 RSR-NF training parameters are stored and can be modified at ```configs/red_nf_train_cfg.yaml```.
