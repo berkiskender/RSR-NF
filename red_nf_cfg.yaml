@@ -1,0 +1,48 @@
+output_dim: P
+num_layers_sweep: [7]
+num_channels_sweep: [64]
+pos_enc_type_sweep: ['fourier']  # ['none', 'sine', 'fourier', 'gaussian']
+mapping_size_sweep: [20]
+input_dim: 3
+beta_sweep: [1.0e-1]   # 8e-5 for,  poly 2 P=128, 5e-6 for walnut P=128
+lmbda_sweep: [1.0e-1]  # 2e-5 for poly 2 P=128, 1e-5 for walnut P=128
+
+model_reg_weight: [0.0e+0]
+type_model_reg: ['l2']  # ['l1', 'l2']
+
+reg_t_weight_sweep: [0.0e-6]  # 1e4 for walnut sec ord l2 group & polymer_binary
+reg_t_loss_type: ['l2_sec_ord_temp_loss']
+# Allowed types: ['TV', 'TV_temp_loss', 'l2_temp_loss', 'l2_temp_group_loss', 'l2_loss', 'l1_sec_ord_temp_loss', 'l2_sec_ord_temp_loss', 'l2_sec_ord_temp_group_loss', 'l1_dct_temp_loss', 'l1_wt_temp_loss']
+
+rep: [REP]
+scale_sweep: [1]
+num_epoch_sweep: [10001]
+num_primal_iter_sweep: [100]  # 200 default
+num_red_iter: [1]
+lr_primal_sweep: [2.0e-4]  # 5.0e-3 for DnCNN denoiser
+sch_thr_step_ratio: [1.0]  # scheduler threshold step ratio
+sch_decay_ratio: [1]       # scheduler decay ratio
+sgd_size: [REP*P//8]
+
+verbose_freq: 500
+
+denoiser_model: ['dncnn_deblur']  # ['dncnn', 'dncnn_deblur', 'dncnn_limited', 'unet', 'unet_deblur', 'unet_limited', 'wavelet']
+denoiser_type: 'full_img'  # ['full_img', 'full_img_plinear', 'patch_based', 'patch_based_patchloss', 'wavelet']
+pSize: [128]  # B=128 for 'full_img'
+pStride: [1]  # S=1 for 'full_img'
+num_layers_denoiser: [6]  # 6 layers for 'full_img' denoiser walnut
+num_channels_denoiser: [64]  # default: 64 full-img walnut
+noise_est_type: 'direct'  # 'direct' or 'residual'. direct for full-img walnut
+denoiser_epochs: 500  # 500 for walnut full-img, 200 or 100 for cardiac full img, 250 for walnut_normalized
+noise_std: [5.0e-2]  # default: walnut: 5e-2
+lambda_jr: [null]
+
+init: ['none']  # ['oracle', 'static', 'red-psm', 'none', 'proj_nf']
+t_freq_ratio_sweep: [1]
+act_type: ['relu']  # default: relu
+final_act: ['relu']  # default: sigmoid
+
+reg_mode: ['RED_reg']  # [RED_reg, no_reg]
+
+metric_upd_freq: 10
+res_plot_freq: 500

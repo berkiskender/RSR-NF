@@ -1,0 +1,46 @@
+# RED static recon training parameters
+num_epoch_sweep: [5000]  # Number of outer iterations for bilinear RED-ADMM
+num_primal_iter_sweep: [100]  # Number of inner GD updates for the primal PSM components
+num_red_iter: [1]  # Number of inner efficient RED updates for f 
+lr_primal_sweep: [1.0e-3]  # The learning rate of the PSM updates 5e-3 default, 1e-3 for static nf
+beta_sweep: [0.0e-5]       # Augmented Lagrangian weights
+lmbda_sweep: [0.0e-5]      # RED regularization weights, walnut: 5e-5
+verbose_freq: 500
+sgd_size: [REP*P//16]
+
+num_layers_sweep: [4]     # 6 layers for 'full_img' denoiser walnut
+num_channels_sweep: [16]  # default: 64 full-img walnut
+pos_enc_type_sweep: ['fourier']
+mapping_size_sweep: [10]
+scale_sweep: [7]
+t_freq_ratio_sweep: [1]
+init: ['none']
+act_type: ['relu']
+final_act: ['sigmoid']
+
+reg_t_weight_sweep: [1.0e+0, 1.0e+0]
+reg_t_loss_type: ['TV']  # Allowed types: ['TV', 'TV_temp_loss', 'l2_temp_loss', 'l2_temp_group_loss', 'l2_loss', 'l1_sec_ord_temp_loss', 'l2_sec_ord_temp_loss', 'l2_sec_ord_temp_group_loss', 'l1_dct_temp_loss', 'l1_wt_temp_loss']
+model_reg_weight: [0]
+type_model_reg: ['l2'] # ['l1', 'l2']
+
+sch_thr_step_ratio: [1.0]    # scheduler threshold step ratio
+sch_decay_ratio: [1.0]          # scheduler decay ratio
+
+denoiser_model: 'dncnn'
+denoiser_type: 'full_img'  # ['full_img', 'full_img_plinear', 'patch_based', 'patch_based_patchloss']
+pSize: [128]               # B=128 for 'full_img'
+pStride: [1]               # S=1 for 'full_img'
+num_layers_denoiser: 6     # 6 layers for 'full_img' denoiser walnut
+num_channels_denoiser: 64  # default: 64 full-img walnut
+noise_est_type: 'residual' # 'direct' or 'residual'. direct for full-img walnut
+denoiser_epochs: 500       # 500 for walnut full-img, 200 or 100 for cardiac full img, 250 for walnut_normalized
+noise_std: [5.0e-2]        # default: 5e-2
+
+criterion: 'MSE'
+
+var_split_ep_sweep: [1]
+
+output_dim: 1
+
+reg_mode: ['no_reg']  # ['no_reg', 'RED_reg']
+rep_mode: ['NF']       # ['NF', 'pixel']
