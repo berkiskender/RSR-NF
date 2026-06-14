@@ -1,3 +1,18 @@
+# RSR-NF: Neural Field Regularization by Static Restoration Priors for Dynamic Imaging
+#
+# Authors: Berk Iskender, Sushan Nakarmi, Nitin Daphalapurkar, Marc L. Klasky, Yoram Bresler
+# Year:    2025
+# Paper:   https://arxiv.org/abs/2503.10015
+#
+# Copyright (C) 2025 Berk Iskender. All rights reserved.
+#
+# This source code accompanies the paper above. If you use this code or build upon
+# this work, please cite:
+#
+#   B. Iskender, S. Nakarmi, N. Daphalapurkar, M. L. Klasky, Y. Bresler,
+#   "RSR-NF: Neural Field Regularization by Static Restoration Priors for Dynamic Imaging,"
+#   arXiv:2503.10015, 2025.
+
 import argparse
 import yaml
 import itertools
