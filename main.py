@@ -23,7 +23,6 @@ import torch.nn as nn
 import torch
 from tqdm import tqdm
 
-import utils_misc
 import utils
 import train
 import metrics as metrics_module
@@ -119,15 +118,15 @@ def main():
 
     # Load phantom
     if obj_type in ['cardiac_rep_sq']:
-        f = utils_misc.load_f(obj_type, motion, spatial_dim, 128)
+        f = utils.load_f(obj_type, motion, spatial_dim, 128)
         f = f[..., ::(128 // num_meas)]
     elif obj_type in ['polymer_subint'] and num_frames == 8:
-        f = utils_misc.load_f(obj_type, motion, spatial_dim, 128)
+        f = utils.load_f(obj_type, motion, spatial_dim, 128)
         f = f[..., 64 - num_frames // 2:64 + num_frames // 2]
     elif num_meas >= 32:
-        f = np.repeat(utils_misc.load_f(obj_type, motion, spatial_dim, num_frames), num_rep, axis=-1)
+        f = np.repeat(utils.load_f(obj_type, motion, spatial_dim, num_frames), num_rep, axis=-1)
     else:
-        f = utils_misc.load_f(obj_type, motion, spatial_dim, 32)[..., ::32 // num_frames]
+        f = utils.load_f(obj_type, motion, spatial_dim, 32)[..., ::32 // num_frames]
     if obj_type == 'polymer_subint':
         f /= 16.0
     f_cuda = torch.tensor(f, dtype=torch.float32, device=device)
@@ -169,7 +168,7 @@ def main():
 
     # Static recon from time-sequential measurements
     f_static_rec = utils.static_recon(g_symm_long_noisy[:spatial_dim], theta_exp)
-    print('\nStatic recon PSNR (dB):', utils_misc.compute_psnr(f, f_static_rec[..., None]))
+    print('\nStatic recon PSNR (dB):', utils.compute_psnr(f, f_static_rec[..., None]))
 
     params['rep'] = [num_rep]
     params['sgd_size'] = [num_meas // 32, num_meas // 16]
@@ -201,7 +200,7 @@ def main():
         hp.lmbda = hp.beta
 
         xyt_grid = torch.tensor(
-            utils_misc._create_yxt_grid(
+            utils._create_yxt_grid(
                 (spatial_dim, spatial_dim, num_frames)).transpose(3, 0, 1, 2)[None, ...],
             dtype=torch.float32, device=device, requires_grad=False)
 

@@ -363,46 +363,91 @@ def load_radon_op(
 # Object loading
 # ---------------------------------------------------------------------------
 
-def load_f(
-    obj_type: str,
-    motion: str,
-    spatial_dim: int,
-    P: int,
-) -> np.ndarray:
+def load_f(obj_type: str, motion: str, spatial_dim: int, P: int) -> np.ndarray:
     """Load the ground-truth dynamic object from disk.
 
-    File paths are hardcoded per object type. Normalisation (material: /255,
-    thresholding) is applied inline for relevant object types.
+    File paths are hardcoded per object type. For object types that only exist
+    at a minimum of 32 frames, sub-sampling is applied when P < 32.
 
     Args:
-        obj_type: Dataset identifier. Supported values: 'walnut', 'hydro',
-            'cardiac*', 'material', 'LLNL', 'LLNL_S03', 'LLNL_S12', 'pde*'.
-        motion: Motion type string, used to resolve the filename for
-            walnut/hydro/cardiac/pde objects.
-        spatial_dim: Target spatial side length.
+        obj_type: Dataset identifier. Supported values:
+            'walnut', 'hydro', 'cardiac*', 'material',
+            'LLNL', 'LLNL_S03', 'LLNL_S12',
+            'pde*' (P must be 256 or 128),
+            'polymer_binary', 'polymer_binary_subint',
+            'polymer_binary_subint_hardest',
+            'polymer_subint', 'polymer_subint_hardest'.
+        motion: Motion type string; used in the filename for walnut/hydro/cardiac/pde.
+        spatial_dim: Spatial side length (used in the filename for walnut/hydro/cardiac/pde).
         P: Number of time frames to load.
 
     Returns:
         Object array f, shape (H, W, P).
+
+    Raises:
+        ValueError: If obj_type is not recognised or P is unsupported for 'pde*'.
     """
     base = '/home/berk/Desktop/spatio_temporal/2D_time_variant_tomography/obj_domain_psm/data/true_objects'
+    nitin = '/home/berk/Desktop/spatio_temporal/2D_time_variant_tomography/nitin_files/phantoms'
+
     if obj_type in ['walnut', 'hydro'] or 'cardiac' in obj_type:
-        return np.load(
-            f'{base}/{obj_type}/f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{P}.npy')
+        p_load = max(P, 32)
+        f = np.load(
+            f'{base}/{obj_type}/f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{p_load}.npy')
+        if P < 32:
+            f = f[..., ::32 // P]
+
     elif obj_type == 'material':
         f = np.load(f'{base}/material/{P}/f_materials.npy').transpose(1, 2, 0)[:, :, :P] / 255
         f[f < 0.3] = 0
-        return f
+
     elif obj_type in ['LLNL_S03', 'LLNL']:
-        return np.load(f'{base}/LLNL/{P}/f_S03_008.npy')[:, :, :P]
+        f = np.load(f'{base}/LLNL/{P}/f_S03_008.npy')[:, :, :P]
+
     elif obj_type == 'LLNL_S12':
-        return np.load(f'{base}/LLNL/{P}/f_S12_001.npy')[:, :, :P]
+        f = np.load(f'{base}/LLNL/{P}/f_S12_001.npy')[:, :, :P]
+
     elif 'pde' in obj_type:
-        suffix = '' if P == 256 else '_2nd_half'
-        return np.load(
-            f'{base}/{obj_type}/f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{P}{suffix}.npy')
+        if P == 256:
+            f = np.load(
+                f'{base}/{obj_type}/f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{P}.npy')
+        elif P == 128:
+            f = np.load(
+                f'{base}/{obj_type}/f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{P}_2nd_half.npy')
+        else:
+            raise ValueError(f"pde objects only support P=256 or P=128; got P={P}.")
+
+    elif obj_type == 'polymer_binary':
+        f = np.load(f'{nitin}/48_binary_/obj_{P}_full.npy')
+
+    elif obj_type == 'polymer_binary_subint':
+        p_load = max(P, 32)
+        f = np.load(f'{nitin}/48_binary_/obj_int_len_{p_load}_int_no_1.npy')
+        if P < 32:
+            f = f[..., ::32 // P]
+
+    elif obj_type == 'polymer_binary_subint_hardest':
+        p_load = max(P, 128)
+        f = np.load(f'{nitin}/48_binary_/obj_int_len_{p_load}_int_no_5.npy')
+        if P < 128:
+            f = f[..., ::128 // P]
+
+    elif obj_type == 'polymer_subint':
+        p_load = max(P, 32)
+        f = np.load(f'{nitin}/48_/obj_int_len_{p_load}_int_no_1.npy')
+        if P < 32:
+            f = f[..., ::32 // P]
+
+    elif obj_type == 'polymer_subint_hardest':
+        p_load = max(P, 128)
+        f = np.load(f'{nitin}/48_/obj_int_len_{p_load}_int_no_5.npy')
+        if P < 128:
+            f = f[..., ::128 // P]
+
     else:
         raise ValueError(f"Unknown obj_type '{obj_type}'.")
+
+    return f
 
 
 # ---------------------------------------------------------------------------
@@ -725,6 +770,29 @@ def obtain_full_recon_cpu(
             g_np[..., t], theta=360 * theta / (2 * np.pi),
             filter_name=filt, interpolation=interp)
     return f_rec
+
+
+# ---------------------------------------------------------------------------
+# Coordinate grid
+# ---------------------------------------------------------------------------
+
+def _create_yxt_grid(grid_size: tuple[int, int, int]) -> np.ndarray:
+    """Create a 3-D mesh grid of normalised spatiotemporal coordinates (matrix indexing).
+
+    Args:
+        grid_size: (H, W, P) dimensions of the grid.
+
+    Returns:
+        Float32 array of shape (H, W, P, 3), where the last axis holds
+        (row, col, time) coordinates normalised to [0, 1).
+    """
+    h, w, P = grid_size
+    coords_i = np.linspace(0, 1, h, endpoint=False)
+    coords_j = np.linspace(0, 1, w, endpoint=False)
+    coords_t = np.linspace(0, 1, P, endpoint=False)
+    return np.stack(
+        np.meshgrid(coords_i, coords_j, coords_t, indexing='ij'), axis=-1
+    ).astype('float32')
 
 
 # ---------------------------------------------------------------------------
