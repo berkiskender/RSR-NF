@@ -328,7 +328,7 @@ def learn_NF_proj(
         loss_var_split = (beta / 2) * torch.linalg.norm(
             f_nf_est.squeeze() - model.f_est.squeeze() + gamma_est)**2
         
-        loss_tv = utils.total_variation_temp_loss(
+        loss_tv = loss_module.total_variation_temp_loss(
             f_nf_est.squeeze().permute(2,0,1), tv_weight)
         
         loss = loss_g + loss_var_split + loss_tv # + geo_weight * xyt_grad_sum 

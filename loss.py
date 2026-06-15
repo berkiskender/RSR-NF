@@ -11,9 +11,6 @@ magnitude of the network's own parameters.
 
 import torch
 import torch.nn as nn
-import torch_dct as dct
-from pytorch_wavelets import DWTForward
-
 
 # ---------------------------------------------------------------------------
 # Spatial regularizers
@@ -167,63 +164,6 @@ def sec_ord_temp_group_loss_l2(x: torch.Tensor, weight: float) -> torch.Tensor:
     h_x, w_x, P = x.size()
     loss_t = torch.norm(x[:, :, 2:] - 2 * x[:, :, 1:-1] + x[:, :, :-2], p='fro')
     return weight * loss_t / (h_x * w_x * P)
-
-
-# ---------------------------------------------------------------------------
-# Transform-domain regularizers
-# ---------------------------------------------------------------------------
-
-def dct_l1_loss(
-    x: torch.Tensor,
-    P_DCT_U: torch.Tensor,
-    weight: float,
-) -> torch.Tensor:
-    """Temporal DCT-domain L1 sparsity loss.
-
-    Encourages sparsity of the DCT coefficients along the time axis.
-    P_DCT_U is accepted for API compatibility but the implementation uses
-    torch_dct directly.
-
-    Args:
-        x: Input tensor, shape (H, W, P).
-        P_DCT_U: DCT basis matrix, shape (P, P). Currently unused.
-        weight: Scalar multiplier applied to the loss.
-
-    Returns:
-        Weighted, normalised L1 norm of DCT coefficients: weight * ||DCT(x)||_1 / (H * W * P).
-    """
-    h_x, w_x, P = x.size()
-    return weight * torch.abs(dct.dct(x)).sum() / (h_x * w_x * P)
-
-
-def wt_l1_loss(
-    x: torch.Tensor,
-    xfm: DWTForward,
-    weight: float,
-) -> torch.Tensor:
-    """Temporal wavelet-domain L1 sparsity loss.
-
-    Applies a pre-constructed DWT transform along the time axis and penalises
-    the L1 norm of all wavelet sub-band coefficients (low-pass and three
-    detail levels).  Expects xfm to be initialised with J=3.
-
-    Args:
-        x: Input tensor, shape (H, W, P).
-        xfm: Pre-constructed DWTForward transform module (J=3).
-        weight: Scalar multiplier applied to the loss.
-
-    Returns:
-        Weighted, normalised L1 norm of wavelet coefficients: weight * ||W(x)||_1 / (H * W * P).
-    """
-    h_x, w_x, P = x.size()
-    X = x.view(h_x * w_x, P)[:, None, None, :]
-    Yl, Yh = xfm(X)
-    return weight * (
-        torch.abs(Yl).sum()
-        + torch.abs(Yh[0]).sum()
-        + torch.abs(Yh[1]).sum()
-        + torch.abs(Yh[2]).sum()
-    ) / (h_x * w_x * P)
 
 
 # ---------------------------------------------------------------------------

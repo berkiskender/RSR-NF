@@ -1,46 +1,7 @@
-import numpy as np
-import torch
-
-from skimage.transform import radon, iradon, PiecewiseAffineTransform, warp
-
-
-## Singular value clipping for Lipschitz cont denoiser
-def Clip_OperatorNorm(kernel, input_shape, clip_to):
-    transform_coefficients = np.fft.fft2(kernel, input_shape, axes=[0, 1])
-    U, D, V = np.linalg.svd(transform_coefficients, compute_uv=True, full_matrices=False)
-    D_clipped = np.minimum(D, clip_to)
-    if kernel.shape[2] > kernel.shape[3]:
-        clipped_transform_coefficients = np.matmul(U, D_clipped[..., None] * V)
-    else: 
-        clipped_transform_coefficients = np.matmul(U * D_clipped[..., None, :], V)
-    clipped_kernel = np.fft.ifft2(clipped_transform_coefficients, axes=[0, 1]).real
-    return clipped_kernel[np.ix_(*[range(d) for d in kernel.shape])]
-
-def Clip_OperatorNorm_torch(kernel, input_shape):
-    transform_coefficients = torch.fft.fft2(kernel, input_shape, dim=(0, 1))
-    U, D, V = torch.linalg.svd(transform_coefficients, full_matrices=False)
-    clip_to = torch.ones(D.shape).cuda()
-    D_clipped = torch.minimum(D, clip_to)
-    if kernel.shape[2] > kernel.shape[3]:
-        clipped_transform_coefficients = torch.matmul(U, D_clipped[..., None] * V)
-    else: 
-        clipped_transform_coefficients = torch.matmul(U * D_clipped[..., None, :], V)
-    clipped_kernel = torch.fft.ifft2(clipped_transform_coefficients, input_shape, dim=(0, 1)).real
-    # return clipped_kernel[np.ix_(*[range(d) for d in kernel.shape])]
-    return clipped_kernel
-
-def SingularValues_torch(kernel, input_shape):
-    transforms = torch.fft.fft2(kernel, input_shape, dim=(0, 1))
-    return torch.linalg.svd(transforms, full_matrices=False)[1]
-
-
-from pathlib import Path
 import os
-import itertools
 
 import numpy as np
-from matplotlib import pyplot as plt
-from skimage.transform import radon, iradon
+from skimage.transform import radon, iradon, PiecewiseAffineTransform, warp
 from skimage.metrics import structural_similarity as ssim
 from scipy import ndimage
 
@@ -48,30 +9,6 @@ import torch
 from torch import nn as nn
 
 import models_denoiser
-
-
-def mask_fov_object(f, spatial_dim):
-    for i,j in list(
-        itertools.product(np.arange(spatial_dim), np.arange(spatial_dim))):
-        if (i-spatial_dim//2)**2 + (j-spatial_dim//2)**2 >= (spatial_dim//2)**2:
-            f[i, j, :] = 0
-    return f
-
-
-def DecimalToBinary(n):
-    return bin(n).replace("0b", "")
-
-
-def bit_reversal(x, N):
-    num_digit = 0
-    while N // 2:
-        N = N // 2
-        num_digit += 1
-    x = list(DecimalToBinary(x))
-    while len(x) < num_digit:
-        x = [0] + x
-    x.reverse()
-    return int("".join(str(n) for n in x), 2)
 
 
 def obtain_projections(f, theta, P):
@@ -103,21 +40,35 @@ def compute_ssim(x_gt, x_rec):
 
 def compute_hfen(f, f_est):
     hf_f = np.zeros(f.shape)
-    log_filter = lambda x, y: ndimage.gaussian_laplace(x - y, sigma=1.5) 
+    log_filter = lambda x, y: ndimage.gaussian_laplace(x - y, sigma=1.5)
     for t in range(f.shape[2]):
         hf_f[..., t] = log_filter(f[..., t], f_est[..., t])
     return np.linalg.norm(hf_f)
 
 
 def generate_theta(P, ang_range=2 * np.pi, period=None):
-    repeat_ang_sch = lambda x: np.tile(x, P//period)
+    def _decimal_to_binary(n):
+        return bin(n).replace("0b", "")
+
+    def _bit_reversal(x, N):
+        num_digit = 0
+        while N // 2:
+            N = N // 2
+            num_digit += 1
+        x = list(_decimal_to_binary(x))
+        while len(x) < num_digit:
+            x = [0] + x
+        x.reverse()
+        return int("".join(str(n) for n in x), 2)
+
+    repeat_ang_sch = lambda x: np.tile(x, P // period)
     period = P if period is None else period
     theta_linear = repeat_ang_sch(np.linspace(0, ang_range, period, endpoint=False))
     theta_random = repeat_ang_sch(np.random.uniform(0, ang_range, size=[period]))
-    theta_bit_reversal = repeat_ang_sch(np.array([(
-        ang_range / period) * bit_reversal(p, period) for p in range(period)]))
-    theta_golden_angle = repeat_ang_sch(np.array([((
-        p * (111.25 / 360) * 2 * np.pi) % (2 * np.pi)) for p in range(period)]))
+    theta_bit_reversal = repeat_ang_sch(np.array([
+        (ang_range / period) * _bit_reversal(p, period) for p in range(period)]))
+    theta_golden_angle = repeat_ang_sch(np.array([
+        ((p * (111.25 / 360) * 2 * np.pi) % (2 * np.pi)) for p in range(period)]))
     return theta_linear, theta_random, theta_bit_reversal, theta_golden_angle
 
 
@@ -147,61 +98,60 @@ def generate_f_pol(f, P, spatial_dim, num_instances, theta_exp, obj_type,
                                        theta=360 * theta_exp / (2 * np.pi))
     if save:
         str_period = '' if period is None else '_' + str(period)
-        np.save(path+'f_pol_s_%s%s_%d%s.npy' %(
+        np.save(path + 'f_pol_s_%s%s_%d%s.npy' % (
             obj_type, add_path, P, str_period), f_pol_s)
-        np.save(path+'f_true_recon_%s%s_%d%s.npy' %(
+        np.save(path + 'f_true_recon_%s%s_%d%s.npy' % (
             obj_type, add_path, P, str_period), f_true_recon)
     return f_pol_s, f_true_recon
 
 
 def add_meas_noise(g_radon, g_radon_pi_symm_long, noise_std, g_max, ang_range,
                    obj_type, P, period, path, save=False, add_path=None):
-    """ 
-    Adds gaussian noise with fixed std to the time-sequential projections.
-    """
+    """Adds Gaussian noise with fixed std to the time-sequential projections."""
     g_radon_noisy = g_radon + np.random.normal(
         loc=0.0, scale=noise_std * g_max, size=g_radon.shape)
     g_radon_symm_long_noisy = g_radon_pi_symm_long * 1
     g_radon_symm_long_noisy[:g_radon.shape[0]] = g_radon_noisy
-    g_radon_symm_long_noisy[g_radon.shape[0]:] = g_radon_pi_symm_long[g_radon.shape[0]:] + np.flipud(g_radon_noisy - g_radon)
+    g_radon_symm_long_noisy[g_radon.shape[0]:] = (
+        g_radon_pi_symm_long[g_radon.shape[0]:] + np.flipud(g_radon_noisy - g_radon))
     if save:
         if ang_range == np.pi:
             str_period = '' if period is None else '_' + str(period)
             np.save(
-                path + 'g_radon_symm_long_noisy_%s%s_%d%s_noise_std_%.2e.npy' %(
-                obj_type, add_path, P, str_period, noise_std),
+                path + 'g_radon_symm_long_noisy_%s%s_%d%s_noise_std_%.2e.npy' % (
+                    obj_type, add_path, P, str_period, noise_std),
                 g_radon_symm_long_noisy)
     return g_radon_noisy, g_radon_symm_long_noisy
 
 
-class patchifier(torch.nn.Module):    
+class patchifier(torch.nn.Module):
     def __init__(self, patchSize, patchStride, spatial_dim, bs):
         super(patchifier, self).__init__()
-        
+
         self.patchSize, self.patchStride, self.bs = patchSize, patchStride, bs
         self.fold_params = dict(
             kernel_size=[patchSize, patchSize], stride=patchStride)
         self.fold = nn.Fold(
             output_size=[spatial_dim, spatial_dim], **self.fold_params)
         self.unfold = nn.Unfold(**self.fold_params)
-        
+
     def merge(self, patches):
         patches = patches.contiguous().view(
-            self.bs, patches.shape[0]//self.bs,
-            self.patchSize*self.patchSize).permute(0,2,1)
+            self.bs, patches.shape[0] // self.bs,
+            self.patchSize * self.patchSize).permute(0, 2, 1)
         x = self.fold(patches)
-        return x/(self.patchSize**2/self.patchStride**2)
-    
+        return x / (self.patchSize ** 2 / self.patchStride ** 2)
+
     def forward(self, x):
-        patches = self.unfold(x).permute(0,2,1)
+        patches = self.unfold(x).permute(0, 2, 1)
         patches = patches.contiguous().view(
-            self.bs*patches.shape[1], 1, self.patchSize, self.patchSize)
-        return patches 
+            self.bs * patches.shape[1], 1, self.patchSize, self.patchSize)
+        return patches
 
 
-def denoising_network_loader(train_type, denoiser_type, pSize, pStride, 
-                             num_layers, spatial_dim, obj_type, 
-                             num_channels, noise_est_type='direct', 
+def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
+                             num_layers, spatial_dim, obj_type,
+                             num_channels, noise_est_type='direct',
                              epochs=500):
     '''
     Loads RED denoiser with the provided specifications.
@@ -209,7 +159,7 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
     Parameters:
     ----------
     train_type (str): The type of denoising network.
-    denoiser_type (str): The type of denoising model. 
+    denoiser_type (str): The type of denoising model.
         Options: ['full_img', 'patch_based', and 'patch_based_patchloss']
     pSize (int): The size of the patch. Only applicable for patch-based models.
     pStride (int): Patch extraction stride. Only applicable for patch-based models.
@@ -217,14 +167,14 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
     spatial_dim (int): The spatial dimension of f.
     obj_type (str): The type of object being denoised.
     num_channels (int): The number of channels for each layer of denoiser.
-    noise_est_type (str, optional): Denoising type. 
+    noise_est_type (str, optional): Denoising type.
         Options: ['direct', 'residual']
     epochs (int, optional): The number of pre-training epochs. Default is 500.
-    
+
     Output:
     -------
     model_dncnn (torch.nn.Module): The loaded and configured deep RED denoiser.
-    patchifier_red (Patchifier or None): A patchifier for patch-based denoising. 
+    patchifier_red (Patchifier or None): A patchifier for patch-based denoising.
         None for full image denoisers.
     '''
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -234,8 +184,8 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
             model_name = 'dncnn'
             model_path = os.path.join(
                 'data/denoiser',
-                model_name + '_model_%s_%s_epochs_%d_num_layers_%d_num_ch_%d.pt' %(
-                obj_type, noise_est_type, epochs, num_layers, num_channels))
+                model_name + '_model_%s_%s_epochs_%d_num_layers_%d_num_ch_%d.pt' % (
+                    obj_type, noise_est_type, epochs, num_layers, num_channels))
             model_dncnn = models_denoiser.dncnn(
                 num_layers, num_channels, filterSize, noise_est_type).cuda()
             patchifier_red = None
@@ -243,7 +193,7 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
             model_name = 'dncnn_patchbased_patchloss'
             model_path = os.path.join(
                 'data/denoiser',
-                model_name + '_model_%s_%s_num_layers_%d_patch_size_%d_patch_stride_%d_num_ch_%d_epochs_%d.pt' %(
+                model_name + '_model_%s_%s_num_layers_%d_patch_size_%d_patch_stride_%d_num_ch_%d_epochs_%d.pt' % (
                     obj_type, noise_est_type, num_layers, pSize, pStride,
                     num_channels, epochs))
             model_dncnn = models_denoiser.dncnnPatchBased_patchLoss(
@@ -251,73 +201,16 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
             patchifier_red = patchifier(pSize, pStride, spatial_dim, 1)
         else:
             raise NotImplementedError
-        
+
     model_dncnn = torch.load(model_path)
     model_dncnn.eval()
     for k, v in model_dncnn.named_parameters():
         v.requires_grad = False
     model_dncnn = model_dncnn.to(device)
     number_parameters = sum(map(lambda x: x.numel(), model_dncnn.parameters()))
-    print('DnCNN %s Model path: {%s} Params number: %d'%(
+    print('DnCNN %s Model path: {%s} Params number: %d' % (
         denoiser_type, model_path, number_parameters))
     return model_dncnn, patchifier_red
-
-
-def total_variation_loss(img, weight):
-    P, h_img, w_img = img.size()
-    tv_h = torch.abs(img[:,1:,:]-img[:,:-1,:]).sum()
-    tv_w = torch.abs(img[:,:,1:]-img[:,:,:-1]).sum()
-    return weight*(tv_h+tv_w)/(h_img*w_img*P)
-
-
-def total_variation_spatiotemp_loss(img, weight_spatial, weight_temp):
-    P, h_img, w_img = img.size()
-    tv_h = torch.abs(img[:, 1:, :]-img[:, :-1, :]).sum()
-    tv_w = torch.abs(img[:, :, 1:]-img[:, :, :-1]).sum()
-    tv_t = torch.abs(img[1:, :, :]-img[:-1, :, :]).sum()
-    return (weight_spatial*(tv_h + tv_w) + weight_temp*tv_t)/(h_img * w_img * P)
-
-
-def projmtx(N, N1, theta, circle):
-    Nsqrt = int(N**0.5)
-    X = np.zeros([N, N])
-    if not circle:
-        T = np.zeros([int(np.ceil(N*np.sqrt(2)))+N1, N])
-    elif circle:
-        T = np.zeros([N, int(N**2)])
-    for n1 in range(0, N):
-        for n2 in range(0, N):
-            X[n1, n2] = 1
-            Y = radon(X, [theta], circle=circle)
-            X[n1, n2] = 0
-            y = Y.reshape(-1)
-            if not circle:
-                T[:, n1*N + n2] = y
-            elif circle and np.sqrt((n1-N//2)**2 + (n2-N//2)**2)<N//2:
-                T[:, n1*N + n2] = y
-    return T
-
-
-def projmtx_pi_symm(N, N1, theta, circle):
-    Nsqrt = int(N**0.5)
-    X = np.zeros([N, N])
-    if not circle:
-        T1 = np.zeros([int(np.ceil(N*np.sqrt(2)))+N1, N])
-        T2 = np.zeros([int(np.ceil(N*np.sqrt(2)))+N1, N])
-    elif circle:
-        T1, T2 = np.zeros([N, int(N**2)]), np.zeros([N, int(N**2)])
-    for n1 in range(0, N):
-        for n2 in range(0, N):
-            X[n1, n2] = 1
-            Y1 = radon(X, [theta], circle=circle)
-            Y2 = radon(X, [theta+180], circle=circle)
-            X[n1, n2] = 0
-            y1, y2 = Y1.reshape(-1), Y2.reshape(-1)
-            if not circle:
-                T1[:, n1*N + n2], T2[:, n1*N + n2] = y1, y2
-            elif circle and np.sqrt((n1-N//2)**2 + (n2-N//2)**2)<N//2:
-                T1[:, n1*N + n2], T2[:, n1*N + n2] = y1, y2
-    return np.concatenate((T1,T2), axis=0)
 
 
 def load_radon_op(pi_symm, spatial_dim, P, period=None, path=None):
@@ -329,7 +222,7 @@ def load_radon_op(pi_symm, spatial_dim, P, period=None, path=None):
     pi_symm (bool): Indicates if the Radon operator incorporates pi-symmetry.
     spatial_dim (int): The spatial dimension of f.
     P (int): The number of measurements.
-    period (int, optional): The number of repeated unique view angles. 
+    period (int, optional): The number of repeated unique view angles.
         If not provided, it defaults to P.
     path (str, optional): Forward operator path.
 
@@ -338,17 +231,17 @@ def load_radon_op(pi_symm, spatial_dim, P, period=None, path=None):
     R (numpy.ndarray): The Radon operator matrix.
     R_cuda (torch.Tensor): The Radon operator matrix as a CUDA tensor for GPU.
     '''
-    if period == None:
+    if period is None:
         period = P
     if pi_symm:
         R = np.load(
-            path + 'A_radon_spatial_dim_%d_P_%d_bit_reversal_pi_symm.npy' %(
+            path + 'A_radon_spatial_dim_%d_P_%d_bit_reversal_pi_symm.npy' % (
                 spatial_dim, period))
     else:
         R = np.load(
-            path + 'A_radon_spatial_dim_%d_P_%d_bit_reversal.npy' %(
+            path + 'A_radon_spatial_dim_%d_P_%d_bit_reversal.npy' % (
                 spatial_dim, period))
-    R = np.tile(np.array(R), (P//period, 1, 1))
+    R = np.tile(np.array(R), (P // period, 1, 1))
     R_cuda = torch.cuda.FloatTensor(R)
     return R, R_cuda
 
@@ -356,27 +249,27 @@ def load_radon_op(pi_symm, spatial_dim, P, period=None, path=None):
 def load_f(obj_type, motion, spatial_dim, P):
     if obj_type in ['walnut', 'hydro'] or 'cardiac' in obj_type:
         f = np.load(
-            'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d.npy' %(
+            'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d.npy' % (
                 obj_type, obj_type, motion, spatial_dim, P))
     elif obj_type in ['material']:
         f = np.load(
-            'data/true_objects/%s/%d/f_materials.npy' %(
-                obj_type, P)).transpose(1,2,0)[:, :, :P] / 255
+            'data/true_objects/%s/%d/f_materials.npy' % (
+                obj_type, P)).transpose(1, 2, 0)[:, :, :P] / 255
         f[f < 0.3] = 0
     elif obj_type in ['LLNL_S03', 'LLNL']:
         f = np.load(
-            'data/true_objects/LLNL/%d/f_S03_008.npy' %P)[:,:,:P]
+            'data/true_objects/LLNL/%d/f_S03_008.npy' % P)[:, :, :P]
     elif obj_type in ['LLNL_S12']:
         f = np.load(
-            'data/true_objects/LLNL/%d/f_S12_001.npy' %P)[:,:,:P]
+            'data/true_objects/LLNL/%d/f_S12_001.npy' % P)[:, :, :P]
     elif 'pde' in obj_type:
         if P == 256:
             f = np.load(
-                'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d.npy' %(
+                'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d.npy' % (
                     obj_type, obj_type, motion, spatial_dim, P))
         elif P == 128:
             f = np.load(
-                'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d_2nd_half.npy' %(
+                'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d_2nd_half.npy' % (
                     obj_type, obj_type, motion, spatial_dim, P))
     return f
 
@@ -389,8 +282,8 @@ def piecewise_affine_transform(image, mag_sin, spatial_dim):
     src_rows, src_cols = np.meshgrid(src_rows, src_cols)
     src = np.dstack([src_cols.flat, src_rows.flat])[0]
 
-    # add sinusoidal oscillation to row coordinates
-    dst_rows = src[:, 1] - np.sin(np.linspace(0, 3 * np.pi, src.shape[0])) * mag_sin * spatial_dim / 64
+    dst_rows = src[:, 1] - np.sin(
+        np.linspace(0, 3 * np.pi, src.shape[0])) * mag_sin * spatial_dim / 64
     dst_cols = src[:, 0]
     dst_rows *= 1.5
     dst_rows -= 1.5 * 8 * spatial_dim / 64
@@ -399,7 +292,5 @@ def piecewise_affine_transform(image, mag_sin, spatial_dim):
     tform = PiecewiseAffineTransform()
     tform.estimate(src, dst)
 
-    out_rows = rows
-    out_cols = cols
-    out = warp(image, tform, output_shape=(out_rows, out_cols))
+    out = warp(image, tform, output_shape=(rows, cols))
     return out
