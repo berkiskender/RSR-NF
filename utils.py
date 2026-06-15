@@ -973,7 +973,7 @@ def get_params(net: nn.Module) -> list[torch.Tensor]:
 def save_model(
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
+    scheduler: torch.optim.lr_scheduler._LRScheduler,
     loss: torch.Tensor,
     obj_type: str,
     num_layers: int,
