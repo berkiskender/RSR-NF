@@ -27,6 +27,32 @@ import models
 
 np.set_printoptions(precision=2)
 
+# ---------------------------------------------------------------------------
+# Data source configuration
+# ---------------------------------------------------------------------------
+
+_DATA_CACHE_DIR = Path.home() / '.cache' / 'rsr_nf'
+
+_BASE_GDRIVE_URL = (
+    'https://drive.google.com/drive/folders/1NgP0WnW3xBlIhJ4kNa8pv3AmR-XM2MvH?usp=sharing'
+)
+_POLYMER_GDRIVE_URL = (
+    'https://drive.google.com/drive/folders/1nwwMgjku0ToJE5qooCgAb253tJy31P4G?usp=sharing'
+)
+
+
+def _gdrive_sync(local_dir: Path, url: str) -> None:
+    """Download a Google Drive folder to *local_dir* if not already cached.
+
+    Args:
+        local_dir: Local directory to download into.
+        url: Public Google Drive folder share URL.
+    """
+    if not local_dir.exists():
+        import gdown
+        local_dir.mkdir(parents=True, exist_ok=True)
+        gdown.download_folder(url, output=str(local_dir), quiet=False, use_cookies=False)
+
 
 # ---------------------------------------------------------------------------
 # Geometry helpers
@@ -364,83 +390,67 @@ def load_radon_op(
 # ---------------------------------------------------------------------------
 
 def load_f(obj_type: str, motion: str, spatial_dim: int, P: int) -> np.ndarray:
-    """Load the ground-truth dynamic object from disk.
+    """Load the ground-truth dynamic object data.
 
     File paths are hardcoded per object type. For object types that only exist
     at a minimum of 32 frames, sub-sampling is applied when P < 32.
 
     Args:
         obj_type: Dataset identifier. Supported values:
-            'walnut', 'hydro', 'cardiac*', 'material',
-            'LLNL', 'LLNL_S03', 'LLNL_S12',
-            'pde*' (P must be 256 or 128),
+            'walnut', 'material',
             'polymer_binary', 'polymer_binary_subint',
             'polymer_binary_subint_hardest',
             'polymer_subint', 'polymer_subint_hardest'.
-        motion: Motion type string; used in the filename for walnut/hydro/cardiac/pde.
-        spatial_dim: Spatial side length (used in the filename for walnut/hydro/cardiac/pde).
+        motion: Motion type string.
+        spatial_dim: Spatial side length.
         P: Number of time frames to load.
 
     Returns:
         Object array f, shape (H, W, P).
 
     Raises:
-        ValueError: If obj_type is not recognised or P is unsupported for 'pde*'.
+        ValueError: If obj_type is not recognized.
     """
-    base = '/home/berk/Desktop/spatio_temporal/2D_time_variant_tomography/obj_domain_psm/data/true_objects'
-    nitin = '/home/berk/Desktop/spatio_temporal/2D_time_variant_tomography/nitin_files/phantoms'
+    base = _DATA_CACHE_DIR
+    polymer_path = _DATA_CACHE_DIR / 'polymer_phantoms'
+    _gdrive_sync(base, _BASE_GDRIVE_URL)
+    _gdrive_sync(polymer_path, _POLYMER_GDRIVE_URL)
 
-    if obj_type in ['walnut', 'hydro'] or 'cardiac' in obj_type:
+    if obj_type == 'walnut':
         p_load = max(P, 32)
         f = np.load(
-            f'{base}/{obj_type}/f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{p_load}.npy')
+            base / obj_type / f'f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{p_load}.npy')
         if P < 32:
             f = f[..., ::32 // P]
 
     elif obj_type == 'material':
-        f = np.load(f'{base}/material/{P}/f_materials.npy').transpose(1, 2, 0)[:, :, :P] / 255
+        f = np.load(base / 'material' / str(P) / 'f_materials.npy').transpose(1, 2, 0)[:, :, :P] / 255
         f[f < 0.3] = 0
 
-    elif obj_type in ['LLNL_S03', 'LLNL']:
-        f = np.load(f'{base}/LLNL/{P}/f_S03_008.npy')[:, :, :P]
-
-    elif obj_type == 'LLNL_S12':
-        f = np.load(f'{base}/LLNL/{P}/f_S12_001.npy')[:, :, :P]
-
-    elif 'pde' in obj_type:
-        if P == 256:
-            f = np.load(
-                f'{base}/{obj_type}/f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{P}.npy')
-        elif P == 128:
-            f = np.load(
-                f'{base}/{obj_type}/f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{P}_2nd_half.npy')
-        else:
-            raise ValueError(f"pde objects only support P=256 or P=128; got P={P}.")
-
     elif obj_type == 'polymer_binary':
-        f = np.load(f'{nitin}/48_binary_/obj_{P}_full.npy')
+        f = np.load(polymer_path / '48_binary_' / f'obj_{P}_full.npy')
 
     elif obj_type == 'polymer_binary_subint':
         p_load = max(P, 32)
-        f = np.load(f'{nitin}/48_binary_/obj_int_len_{p_load}_int_no_1.npy')
+        f = np.load(polymer_path / '48_binary_' / f'obj_int_len_{p_load}_int_no_1.npy')
         if P < 32:
             f = f[..., ::32 // P]
 
     elif obj_type == 'polymer_binary_subint_hardest':
         p_load = max(P, 128)
-        f = np.load(f'{nitin}/48_binary_/obj_int_len_{p_load}_int_no_5.npy')
+        f = np.load(polymer_path / '48_binary_' / f'obj_int_len_{p_load}_int_no_5.npy')
         if P < 128:
             f = f[..., ::128 // P]
 
     elif obj_type == 'polymer_subint':
         p_load = max(P, 32)
-        f = np.load(f'{nitin}/48_/obj_int_len_{p_load}_int_no_1.npy')
+        f = np.load(polymer_path / '48_' / f'obj_int_len_{p_load}_int_no_1.npy')
         if P < 32:
             f = f[..., ::32 // P]
 
     elif obj_type == 'polymer_subint_hardest':
         p_load = max(P, 128)
-        f = np.load(f'{nitin}/48_/obj_int_len_{p_load}_int_no_5.npy')
+        f = np.load(polymer_path / '48_' / f'obj_int_len_{p_load}_int_no_5.npy')
         if P < 128:
             f = f[..., ::128 // P]
 
@@ -582,7 +592,7 @@ def denoising_network_loader(
                 else ''
             )
             needs_noise_std = (
-                'polymer' in obj_type or 'cardiac' in obj_type
+                'polymer_path' in obj_type
                 or 'deblur' in train_type or 'limited' in train_type
             )
             if needs_noise_std:

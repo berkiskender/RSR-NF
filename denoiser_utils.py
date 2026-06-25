@@ -204,7 +204,7 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
 
     model_dncnn = torch.load(model_path)
     model_dncnn.eval()
-    for k, v in model_dncnn.named_parameters():
+    for v in model_dncnn.parameters():
         v.requires_grad = False
     model_dncnn = model_dncnn.to(device)
     number_parameters = sum(map(lambda x: x.numel(), model_dncnn.parameters()))
@@ -247,30 +247,17 @@ def load_radon_op(pi_symm, spatial_dim, P, period=None, path=None):
 
 
 def load_f(obj_type, motion, spatial_dim, P):
-    if obj_type in ['walnut', 'hydro'] or 'cardiac' in obj_type:
+    if obj_type == 'walnut':
         f = np.load(
             'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d.npy' % (
                 obj_type, obj_type, motion, spatial_dim, P))
-    elif obj_type in ['material']:
+    elif obj_type == 'material':
         f = np.load(
             'data/true_objects/%s/%d/f_materials.npy' % (
                 obj_type, P)).transpose(1, 2, 0)[:, :, :P] / 255
         f[f < 0.3] = 0
-    elif obj_type in ['LLNL_S03', 'LLNL']:
-        f = np.load(
-            'data/true_objects/LLNL/%d/f_S03_008.npy' % P)[:, :, :P]
-    elif obj_type in ['LLNL_S12']:
-        f = np.load(
-            'data/true_objects/LLNL/%d/f_S12_001.npy' % P)[:, :, :P]
-    elif 'pde' in obj_type:
-        if P == 256:
-            f = np.load(
-                'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d.npy' % (
-                    obj_type, obj_type, motion, spatial_dim, P))
-        elif P == 128:
-            f = np.load(
-                'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d_2nd_half.npy' % (
-                    obj_type, obj_type, motion, spatial_dim, P))
+    else:
+        raise ValueError(f"Unknown obj_type '{obj_type}'.")
     return f
 
 

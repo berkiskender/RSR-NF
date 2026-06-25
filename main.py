@@ -117,10 +117,7 @@ def main():
         num_meas, ang_range=ang_range, period=ang_period)[view_ang_sch]
 
     # Load phantom
-    if obj_type in ['cardiac_rep_sq']:
-        f = utils.load_f(obj_type, motion, spatial_dim, 128)
-        f = f[..., ::(128 // num_meas)]
-    elif obj_type in ['polymer_subint'] and num_frames == 8:
+    if obj_type in ['polymer_subint'] and num_frames == 8:
         f = utils.load_f(obj_type, motion, spatial_dim, 128)
         f = f[..., 64 - num_frames // 2:64 + num_frames // 2]
     elif num_meas >= 32:

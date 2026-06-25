@@ -10,7 +10,6 @@ import torch
 from torch import nn as nn
 import torchvision.transforms as T
 
-import utils_misc
 import models_denoiser
 import denoiser_data_load
 
@@ -98,7 +97,7 @@ def main():
     val_dataloader = denoiser_data_load.DataLoader(val_dataset, batch_size=16, 
                                                    shuffle=True, num_workers=0)
 
-    if obj_type in ['material', 'cardiac', 'polymer', 'polymer_binary', 'polymer_binary_normalized'] or 'cardiac' in obj_type:
+    if obj_type in ['material', 'polymer', 'polymer_binary', 'polymer_binary_normalized']:
         dynamic_dataset = denoiser_data_load.Dataset(f_dynamic_clean, f_dynamic_clean, 
                                                      rot_p=rot_p, rot_angles=rot_angles)
         dynamic_dataloader = denoiser_data_load.DataLoader(dynamic_dataset, batch_size=16, 
@@ -160,8 +159,7 @@ def main():
                 loss_val += criterion(denoised, mask * (sample_batch['gt'])).data.cpu().numpy()
         loss_val_epoch.append(loss_val/(i_batch+1))
         
-        if obj_type in ['material', 'cardiac', 'polymer_binary', 'polymer',
-                        'polymer_binary_normalized'] or 'cardiac' in obj_type:
+        if obj_type in ['material', 'polymer_binary', 'polymer', 'polymer_binary_normalized']:
             with torch.no_grad():
                 loss_dyn = 0
                 for i_batch, sample_batch in enumerate(dynamic_dataloader):
@@ -175,9 +173,9 @@ def main():
                     loss_dyn += criterion(denoised, mask * (sample_batch['gt'])).data.cpu().numpy()
             loss_dyn_epoch.append(loss_dyn/(i_batch+1))
         
-        if obj_type in ['walnut', 'LLNL', 'walnut_normalized']:
+        if obj_type in ['walnut', 'walnut_normalized']:
             t.set_description('Loss - Train: %.2e Reg: %.2e Val: %.2e'%(loss_train_epoch[-1], loss_reg_epoch[-1], loss_val_epoch[-1]))
-        elif obj_type in ['material', 'cardiac', 'polymer', 'polymer_binary', 'polymer_binary_normalized'] or 'cardiac' in obj_type:
+        elif obj_type in ['material', 'polymer', 'polymer_binary', 'polymer_binary_normalized']:
             t.set_description('Loss - Train: %.2e Reg: %.2e Val: %.2e Dyn: %.2e' %(
                 loss_train_epoch[-1], loss_reg_epoch[-1], loss_val_epoch[-1], loss_dyn_epoch[-1]))
         
@@ -329,33 +327,6 @@ def load_data(obj_type, std_high, std_low, noise_std, path):
         # test_data_noisy_rand = np.load(path+'material_mean_corr_%s_test_noise_std_rand_low_%.2e_high_%.2e.npy' %(test_path, std_low, std_high))
         # f_dynamic_noisy_rand = np.load(path+'material_mean_corr_dynamic_noise_std_rand_low_%.2e_high_%.2e.npy' %(std_low, std_high))
         
-    elif 'cardiac' in obj_type:
-        train_data_clean = np.load(path+'cardiac_train_gt_unmasked.npy')
-        test_data_clean = np.load(path+'cardiac_test_gt_unmasked.npy')
-        f_dynamic_clean = np.load(path+'cardiac_dynamic_gt_unmasked.npy')
-
-        # train_data_noisy_rand = np.load(path+'cardiac_train_noise_std_rand_low_%.2e_high_%.2e_unmasked.npy' %(std_low, std_high))
-        # test_data_noisy_rand = np.load(path+'cardiac_test_noise_std_rand_low_%.2e_high_%.2e_unmasked.npy' %(std_low, std_high))
-        # f_dynamic_noisy_rand = np.load(path+'cardiac_dynamic_noise_std_rand_low_%.2e_high_%.2e_unmasked.npy' %(std_low, std_high))
-        
-    elif obj_type == 'hydro':
-        train_data_clean = np.load(path+'hydro_train_gt_unmasked.npy')
-        test_data_clean = np.load(path+'hydro_test_gt_unmasked.npy')
-        f_dynamic_clean = np.load(path+'hydro_test_gt_unmasked.npy')
-
-        # train_data_noisy_rand = np.load(path+'hydro_train_noise_std_rand_low_%.2e_high_%.2e_unmasked.npy' %(std_low, std_high))
-        # test_data_noisy_rand = np.load(path+'hydro_test_noise_std_rand_low_%.2e_high_%.2e_unmasked.npy' %(std_low, std_high))
-        # f_dynamic_noisy_rand = np.load(path+'hydro_test_noise_std_rand_low_%.2e_high_%.2e_unmasked.npy' %(std_low, std_high))
-        
-    elif obj_type == 'LLNL':
-        train_data_clean = np.load(path+'LLNL_train_gt_unmasked.npy')
-        test_data_clean = np.load(path+'LLNL_test_gt_unmasked.npy')
-        f_dynamic_clean = np.load(path+'LLNL_test_gt_unmasked.npy')
-
-        # train_data_noisy_rand = np.load(path+'LLNL_train_noise_std_rand_low_%.2e_high_%.2e_unmasked.npy' %(std_low, std_high))
-        # test_data_noisy_rand = np.load(path+'LLNL_test_noise_std_rand_low_%.2e_high_%.2e_unmasked.npy' %(std_low, std_high))
-        # f_dynamic_noisy_rand = np.load(path+'LLNL_test_noise_std_rand_low_%.2e_high_%.2e_unmasked.npy' %(std_low, std_high))
-        
     elif obj_type == 'polymer_binary':
         train_data_clean = np.load(path+'polymer_binary_train_gt_unmasked.npy')
         test_data_clean = np.load(path+'polymer_binary_test_gt_unmasked.npy')
@@ -389,7 +360,7 @@ def load_data(obj_type, std_high, std_low, noise_std, path):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--obj_type", type=str, required=True)   # ['walnut', 'walnut_normalized', 'material', 'cardiac_rep_sq', 'hydro', 'LLNL', 'polymer_binary', 'polymer']
+parser.add_argument("--obj_type", type=str, required=True)   # ['walnut', 'walnut_normalized', 'material', 'polymer_binary', 'polymer']
 parser.add_argument("--std_high", type=float, required=True)
 parser.add_argument("--std_low", type=float, required=False, default=0.0)
 parser.add_argument("--noise_std", type=float, required=False, default=2e-2)
