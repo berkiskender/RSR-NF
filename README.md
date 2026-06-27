@@ -25,6 +25,9 @@ Tomographic forward models (measurement operators) for different total number of
 
 Different forward models for different imaging modalities with dimensions ```[measurement size x image size x total number of measurements]``` can also be used with RSR-NF.
 
+## Object data
+Ground-truth object data for different total number of measurements to generate measurements and perform evaluations: (i) [walnut](https://drive.google.com/drive/folders/1vxbgd0hrtoJF9ThgSUIMHCNDptfMEXwu?usp=drive_link) (ii) [polymer](https://drive.google.com/drive/folders/1nwwMgjku0ToJE5qooCgAb253tJy31P4G?usp=drive_link). Forward models are expected to be stored in `data/walnut` and `data/polymer`, respectively.
+
 ## Citation
 If you find RSR-NF useful for your research, please cite:
 
