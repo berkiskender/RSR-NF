@@ -13,7 +13,7 @@ import numpy as np
 from skimage.transform import radon, iradon
 from skimage.metrics import structural_similarity as ssim
 from skimage.restoration import denoise_wavelet
-from scipy import ndimage
+from scipy import ndimage, sparse as sp
 
 import torch
 from torch import nn
@@ -332,28 +332,30 @@ def load_radon_op(
 ) -> tuple[np.ndarray, torch.Tensor]:
     """Load the pre-computed differentiable Radon forward operator from disk.
 
-    The operator is stored as a (num_angles, spatial_dim, spatial_dim²) array.
-    When P > period, it is tiled along the first axis to cover all P angles.
+    Prefers a compressed sparse float32 file (<stem>.sparse.npz) when available;
+    falls back to the original dense float64 .npy file. The operator has shape
+    (num_angles, spatial_dim, spatial_dim²); when P > period it is tiled.
 
     Args:
         pi_symm: If True, loads the pi-symmetric operator (half-scan angles).
         spatial_dim: Spatial side length d; reconstruction is d x d.
         P: Total number of view angles to cover.
         period: Number of unique angles in the stored operator. Defaults to P.
-        path: Directory containing the .npy operator file.
+        path: Directory containing the operator file.
 
     Returns:
         R: Radon operator array, shape (P, spatial_dim, spatial_dim²).
         R_cuda: Same as R but as a CUDA FloatTensor for GPU use.
     """
     period = P if period is None else period
-    filename = (
-        'A_radon_spatial_dim_%d_P_%d_bit_reversal_pi_symm.npy' % (spatial_dim, period)
+    stem = (
+        'A_radon_spatial_dim_%d_P_%d_bit_reversal_pi_symm' % (spatial_dim, period)
         if pi_symm else
-        'A_radon_spatial_dim_%d_P_%d_bit_reversal.npy' % (spatial_dim, period)
+        'A_radon_spatial_dim_%d_P_%d_bit_reversal' % (spatial_dim, period)
     )
-    R = np.load(path + filename)
-    R = np.tile(np.array(R), (P // period, 1, 1))
+    R = sp.load_npz(path + stem + '.sparse.npz').toarray().reshape(period, spatial_dim, -1).astype(np.float64)
+
+    R = np.tile(R, (P // period, 1, 1))
     R_cuda = torch.cuda.FloatTensor(R)
     return R, R_cuda
 

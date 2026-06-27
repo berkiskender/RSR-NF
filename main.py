@@ -73,8 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pi_symm", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--gen_g_all", action='store_true', default=False)
     parser.add_argument("--save_noisy_meas", action='store_true', default=False)
-    parser.add_argument("--fwd_model_path", type=str,
-                        default='/home/berk/Desktop/spatio_temporal/2D_time_variant_tomography/obj_domain_psm/forward_model/')
+    parser.add_argument("--fwd_model_path", type=str, default='data/forward_models/')
     parser.add_argument("--data_path", type=str,
                         default='/home/berk/Desktop/spatio_temporal/2D_time_variant_tomography/obj_domain_psm/data/')
     parser.add_argument("--rep", type=int, default=1)
