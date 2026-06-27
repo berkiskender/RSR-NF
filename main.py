@@ -134,7 +134,7 @@ def main():
     g_symm_long = utils.construct_pi_symm_g(g, g_pi_symm, ang_range)
 
     # Compute/Load full set of measurements
-    add_path = '_mean_corr' if obj_type == 'material' else ''
+    add_path = ''
     if gen_g_all:
         f_pol_radon, _ = utils.generate_f_pol(
             f, num_frames, spatial_dim, num_meas, theta_exp, obj_type, ang_period,

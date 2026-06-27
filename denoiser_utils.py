@@ -251,11 +251,6 @@ def load_f(obj_type, motion, spatial_dim, P):
         f = np.load(
             'data/true_objects/%s/f_%s_%s_spatial_dim_%d_P_%d.npy' % (
                 obj_type, obj_type, motion, spatial_dim, P))
-    elif obj_type == 'material':
-        f = np.load(
-            'data/true_objects/%s/%d/f_materials.npy' % (
-                obj_type, P)).transpose(1, 2, 0)[:, :, :P] / 255
-        f[f < 0.3] = 0
     else:
         raise ValueError(f"Unknown obj_type '{obj_type}'.")
     return f
