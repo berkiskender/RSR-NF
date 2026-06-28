@@ -1,0 +1,25 @@
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (unused imports, undefined names)
+    "I",   # isort (import ordering)
+    "UP",  # pyupgrade (modernise syntax)
+]
+ignore = [
+    "E501",   # line too long — handled by formatter
+    "E741",   # ambiguous variable names (l, O, I) — common in math code
+    "F401",   # unused imports — some are intentional re-exports
+    "UP007",  # use X | Y for union types — keep Optional for clarity
+]
+
+[tool.ruff.lint.per-file-ignores]
+"denoiser_pretraining.py" = ["E402"]  # module-level imports not at top of file
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"

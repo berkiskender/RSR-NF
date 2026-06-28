@@ -16,6 +16,7 @@ import torch.nn as nn
 # Spatial regularizers
 # ---------------------------------------------------------------------------
 
+
 def total_variation_loss(x: torch.Tensor, weight: float) -> torch.Tensor:
     """Isotropic spatial total variation loss, averaged over all voxels.
 
@@ -57,6 +58,7 @@ def l2_loss(x: torch.Tensor, weight: float) -> torch.Tensor:
 # ---------------------------------------------------------------------------
 # Temporal regularizers
 # ---------------------------------------------------------------------------
+
 
 def total_variation_temp_loss(x: torch.Tensor, weight: float) -> torch.Tensor:
     """First-order temporal total variation loss, averaged over all voxels.
@@ -171,13 +173,13 @@ def sec_ord_temp_group_loss_l2(x: torch.Tensor, weight: float) -> torch.Tensor:
 # ---------------------------------------------------------------------------
 
 _LOSS_REGISTRY: dict[str, callable] = {
-    'TV':                        total_variation_loss,
-    'TV_temp_loss':              total_variation_temp_loss,
-    'l2_temp_loss':              l2_temp_loss,
-    'l2_temp_group_loss':        l2_temp_group_loss,
-    'l2_loss':                   l2_loss,
-    'l1_sec_ord_temp_loss':      sec_ord_temp_loss_l1,
-    'l2_sec_ord_temp_loss':      sec_ord_temp_loss_l2,
+    'TV': total_variation_loss,
+    'TV_temp_loss': total_variation_temp_loss,
+    'l2_temp_loss': l2_temp_loss,
+    'l2_temp_group_loss': l2_temp_group_loss,
+    'l2_loss': l2_loss,
+    'l1_sec_ord_temp_loss': sec_ord_temp_loss_l1,
+    'l2_sec_ord_temp_loss': sec_ord_temp_loss_l2,
     'l2_sec_ord_temp_group_loss': sec_ord_temp_group_loss_l2,
 }
 
@@ -201,8 +203,7 @@ def reg_loss(x: torch.Tensor, loss_type: str, weight: float) -> torch.Tensor:
     """
     if loss_type not in _LOSS_REGISTRY:
         raise NotImplementedError(
-            f"Unsupported loss_type '{loss_type}'. "
-            f"Choose from: {sorted(_LOSS_REGISTRY)}"
+            f"Unsupported loss_type '{loss_type}'. Choose from: {sorted(_LOSS_REGISTRY)}"
         )
     return _LOSS_REGISTRY[loss_type](x, weight)
 

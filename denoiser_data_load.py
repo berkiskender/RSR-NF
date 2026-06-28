@@ -9,13 +9,15 @@ from typing import Optional
 
 import numpy as np
 import torch
-from torch.utils.data import Dataset as _TorchDataset, DataLoader  # noqa: F401 — DataLoader re-exported
-from torchvision.transforms import Compose, RandomApply, functional as TF
-
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset as _TorchDataset  # noqa: F401 — DataLoader re-exported
+from torchvision.transforms import Compose, RandomApply
+from torchvision.transforms import functional as TF
 
 # ---------------------------------------------------------------------------
 # Per-sample spatial augmentation transforms
 # ---------------------------------------------------------------------------
+
 
 class RandomHorizontalFlipTx:
     """Randomly flip both images in a sample horizontally.
@@ -109,6 +111,7 @@ class RandomRotationTx:
 # Paired dataset
 # ---------------------------------------------------------------------------
 
+
 class Dataset(_TorchDataset):
     """Paired (noisy, ground-truth) dataset with on-the-fly spatial augmentation.
 
@@ -129,20 +132,25 @@ class Dataset(_TorchDataset):
         data_train: np.ndarray,
         data_gt: np.ndarray,
         rot_p: float = 0.5,
-        rot_angles: Optional[list[float]] = None,
+        rot_angles: list[float] | None = None,
     ) -> None:
         if rot_angles is None:
             rot_angles = [0, 90, 180, 270]
         self.data_train = data_train
         self.data_gt = data_gt
-        self.transform = Compose([
-            ToTensor(),
-            RandomApply([
-                RandomHorizontalFlipTx(p=rot_p),
-                RandomVerticalFlipTx(p=rot_p),
-                RandomRotationTx(angles=rot_angles),
-            ], p=1.0),
-        ])
+        self.transform = Compose(
+            [
+                ToTensor(),
+                RandomApply(
+                    [
+                        RandomHorizontalFlipTx(p=rot_p),
+                        RandomVerticalFlipTx(p=rot_p),
+                        RandomRotationTx(angles=rot_angles),
+                    ],
+                    p=1.0,
+                ),
+            ]
+        )
 
     def __len__(self) -> int:
         """Return the number of samples in the dataset."""

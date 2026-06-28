@@ -4,24 +4,25 @@ Covers: data loading, Radon forward operators, measurement simulation,
 positional encodings, image-quality metrics, and model I/O helpers.
 """
 
-from pathlib import Path
-from typing import Callable, Optional
 import os
 import sys
+from collections.abc import Callable
+from pathlib import Path
+from typing import Optional
 
 import numpy as np
-from skimage.transform import radon, iradon
+import tomosipo as ts
+import torch
+from scipy import ndimage
+from scipy import sparse as sp
 from skimage.metrics import structural_similarity as ssim
 from skimage.restoration import denoise_wavelet
-from scipy import ndimage, sparse as sp
-
-import torch
+from skimage.transform import iradon, radon
 from torch import nn
-
-import tomosipo as ts
-from ts_algorithms import sirt, tv_min2d, nag_ls
+from ts_algorithms import nag_ls, sirt, tv_min2d
 
 import models_denoiser
+
 sys.modules['red_psm_models'] = models_denoiser  # saved checkpoints reference the old module name
 import models
 
@@ -30,6 +31,7 @@ np.set_printoptions(precision=2)
 # ---------------------------------------------------------------------------
 # Geometry helpers
 # ---------------------------------------------------------------------------
+
 
 def mask_fov_object(f: np.ndarray, spatial_dim: int) -> np.ndarray:
     """Zero-out voxels outside the circular field-of-view for all time frames.
@@ -41,12 +43,10 @@ def mask_fov_object(f: np.ndarray, spatial_dim: int) -> np.ndarray:
     Returns:
         f with all voxels outside the inscribed circle set to zero, in place.
     """
-    ii, jj = np.meshgrid(
-        np.arange(spatial_dim), np.arange(spatial_dim), indexing='ij')
-    outside_fov = (
-        (ii - spatial_dim // 2) ** 2 + (jj - spatial_dim // 2) ** 2
-        >= (spatial_dim // 2) ** 2
-    )
+    ii, jj = np.meshgrid(np.arange(spatial_dim), np.arange(spatial_dim), indexing='ij')
+    outside_fov = (ii - spatial_dim // 2) ** 2 + (jj - spatial_dim // 2) ** 2 >= (
+        spatial_dim // 2
+    ) ** 2
     f[outside_fov, :] = 0
     return f
 
@@ -60,7 +60,7 @@ def _decimal_to_binary(n: int) -> str:
     Returns:
         Binary string, e.g. _decimal_to_binary(6) == '110'.
     """
-    return bin(n).replace("0b", "")
+    return bin(n).replace('0b', '')
 
 
 def _bit_reversal(x: int, N: int) -> int:
@@ -83,12 +83,13 @@ def _bit_reversal(x: int, N: int) -> int:
     while len(digits) < num_digit:
         digits = [0] + digits
     digits.reverse()
-    return int("".join(str(d) for d in digits), 2)
+    return int(''.join(str(d) for d in digits), 2)
 
 
 # ---------------------------------------------------------------------------
 # Projection / measurement routines
 # ---------------------------------------------------------------------------
+
 
 def obtain_projections(f: np.ndarray, theta: np.ndarray, P: int) -> np.ndarray:
     """Compute one time-sequential projection per frame (dynamic undersampling).
@@ -143,7 +144,7 @@ def static_recon(g: np.ndarray, theta: np.ndarray) -> np.ndarray:
 def generate_theta(
     P: int,
     ang_range: float = 2 * np.pi,
-    period: Optional[int] = None,
+    period: int | None = None,
 ) -> dict[str, np.ndarray]:
     """Compute view-angle schedules for dynamic tomographic acquisition.
 
@@ -167,12 +168,12 @@ def generate_theta(
 
     theta_linear = tile(np.linspace(0, ang_range, period, endpoint=False))
     theta_random = tile(np.random.uniform(0, ang_range, size=[period]))
-    theta_bit_reversal = tile(np.array([
-        (ang_range / period) * _bit_reversal(p, period) for p in range(period)
-    ]))
-    theta_golden_angle = tile(np.array([
-        ((p * (111.25 / 360) * 2 * np.pi) % (2 * np.pi)) for p in range(period)
-    ]))
+    theta_bit_reversal = tile(
+        np.array([(ang_range / period) * _bit_reversal(p, period) for p in range(period)])
+    )
+    theta_golden_angle = tile(
+        np.array([((p * (111.25 / 360) * 2 * np.pi) % (2 * np.pi)) for p in range(period)])
+    )
     return {
         'linear': theta_linear,
         'random': theta_random,
@@ -204,8 +205,8 @@ def construct_pi_symm_g(
     """
     if ang_range == np.pi:
         g_symm_long = np.zeros([2 * g_radon.shape[0], g_radon.shape[1]])
-        g_symm_long[:g_radon.shape[0], :] = g_radon
-        g_symm_long[g_radon.shape[0]:, :] = g_radon_pi_symm
+        g_symm_long[: g_radon.shape[0], :] = g_radon
+        g_symm_long[g_radon.shape[0] :, :] = g_radon_pi_symm
     else:
         g_symm_long = g_radon, g_radon
     return g_symm_long
@@ -218,10 +219,10 @@ def generate_f_pol(
     num_instances: int,
     theta_exp: np.ndarray,
     obj_type: str,
-    period: Optional[int] = None,
-    path: Optional[str] = None,
+    period: int | None = None,
+    path: str | None = None,
     save: bool = True,
-    add_path: Optional[str] = None,
+    add_path: str | None = None,
     rep: int = 1,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute the full sinogram and FBP reconstruction for each time frame.
@@ -247,18 +248,21 @@ def generate_f_pol(
     f_true_recon = np.zeros(f.shape)
     for t in range(num_instances):
         f_pol_s[..., t] = radon(
-            f[..., t * rep * P // num_instances],
-            theta=360 * theta_exp / (2 * np.pi))
+            f[..., t * rep * P // num_instances], theta=360 * theta_exp / (2 * np.pi)
+        )
         f_true_recon[..., t] = iradon(
-            f_pol_s[..., t * rep * P // num_instances],
-            theta=360 * theta_exp / (2 * np.pi))
+            f_pol_s[..., t * rep * P // num_instances], theta=360 * theta_exp / (2 * np.pi)
+        )
     if save:
         str_period = '' if period is None else '_' + str(period)
         str_rep = '' if rep == 1 else '_rep_%d' % rep
-        np.save(path + 'f_pol_s_%s%s_%d%s%s.npy' % (
-            obj_type, add_path, P, str_period, str_rep), f_pol_s)
-        np.save(path + 'f_true_recon_%s%s_%d%s%s.npy' % (
-            obj_type, add_path, P, str_period, str_rep), f_true_recon)
+        np.save(
+            path + 'f_pol_s_%s%s_%d%s%s.npy' % (obj_type, add_path, P, str_period, str_rep), f_pol_s
+        )
+        np.save(
+            path + 'f_true_recon_%s%s_%d%s%s.npy' % (obj_type, add_path, P, str_period, str_rep),
+            f_true_recon,
+        )
     return f_pol_s, f_true_recon
 
 
@@ -270,10 +274,10 @@ def add_meas_noise(
     ang_range: float,
     obj_type: str,
     P: int,
-    period: Optional[int],
+    period: int | None,
     path: str,
     save: bool = False,
-    add_path: Optional[str] = None,
+    add_path: str | None = None,
     rep: int = 1,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Add zero-mean Gaussian noise to the time-sequential sinogram.
@@ -301,21 +305,21 @@ def add_meas_noise(
         g_radon_noisy: Noisy version of g_radon, shape (H, P).
         g_symm_long_noisy: Noisy extended sinogram, shape (2*H, P).
     """
-    g_radon_noisy = g_radon + np.random.normal(
-        loc=0.0, scale=noise_std * g_max, size=g_radon.shape)
+    g_radon_noisy = g_radon + np.random.normal(loc=0.0, scale=noise_std * g_max, size=g_radon.shape)
     g_symm_long_noisy = np.zeros(g_radon_pi_symm_long.shape)
-    g_symm_long_noisy[:g_radon.shape[0]] = g_radon_noisy
-    g_symm_long_noisy[g_radon.shape[0]:] = (
-        g_radon_pi_symm_long[g_radon.shape[0]:]
-        + np.flipud(g_radon_noisy - g_radon)
+    g_symm_long_noisy[: g_radon.shape[0]] = g_radon_noisy
+    g_symm_long_noisy[g_radon.shape[0] :] = g_radon_pi_symm_long[g_radon.shape[0] :] + np.flipud(
+        g_radon_noisy - g_radon
     )
     if save and ang_range == np.pi:
         str_period = '' if period is None else '_' + str(period)
         str_rep = '' if rep == 1 else '_rep_%d' % rep
         np.save(
-            path + 'g_radon_symm_long_noisy_%s%s_%d%s_noise_std_%.2e%s.npy' % (
-                obj_type, add_path, P, str_period, noise_std, str_rep),
-            g_symm_long_noisy)
+            path
+            + 'g_radon_symm_long_noisy_%s%s_%d%s_noise_std_%.2e%s.npy'
+            % (obj_type, add_path, P, str_period, noise_std, str_rep),
+            g_symm_long_noisy,
+        )
     return g_radon_noisy, g_symm_long_noisy
 
 
@@ -323,12 +327,13 @@ def add_meas_noise(
 # Forward operator
 # ---------------------------------------------------------------------------
 
+
 def load_radon_op(
     pi_symm: bool,
     spatial_dim: int,
     P: int,
-    period: Optional[int] = None,
-    path: Optional[str] = None,
+    period: int | None = None,
+    path: str | None = None,
 ) -> tuple[np.ndarray, torch.Tensor]:
     """Load the pre-computed differentiable Radon forward operator from disk.
 
@@ -350,10 +355,15 @@ def load_radon_op(
     period = P if period is None else period
     stem = (
         'A_radon_spatial_dim_%d_P_%d_bit_reversal_pi_symm' % (spatial_dim, period)
-        if pi_symm else
-        'A_radon_spatial_dim_%d_P_%d_bit_reversal' % (spatial_dim, period)
+        if pi_symm
+        else 'A_radon_spatial_dim_%d_P_%d_bit_reversal' % (spatial_dim, period)
     )
-    R = sp.load_npz(path + stem + '.sparse.npz').toarray().reshape(period, -1, spatial_dim ** 2).astype(np.float64)
+    R = (
+        sp.load_npz(path + stem + '.sparse.npz')
+        .toarray()
+        .reshape(period, -1, spatial_dim**2)
+        .astype(np.float64)
+    )
 
     R = np.tile(R, (P // period, 1, 1))
     R_cuda = torch.cuda.FloatTensor(R)
@@ -363,6 +373,7 @@ def load_radon_op(
 # ---------------------------------------------------------------------------
 # Object loading
 # ---------------------------------------------------------------------------
+
 
 def load_f(obj_type: str, motion: str, spatial_dim: int, P: int) -> np.ndarray:
     """Load the ground-truth dynamic object data.
@@ -391,10 +402,9 @@ def load_f(obj_type: str, motion: str, spatial_dim: int, P: int) -> np.ndarray:
 
     if obj_type == 'walnut':
         p_load = max(P, 32)
-        f = np.load(
-            walnut_path / f'f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{p_load}.npy')
+        f = np.load(walnut_path / f'f_{obj_type}_{motion}_spatial_dim_{spatial_dim}_P_{p_load}.npy')
         if P < 32:
-            f = f[..., ::32 // P]
+            f = f[..., :: 32 // P]
 
     elif obj_type == 'polymer_binary':
         f = np.load(polymer_path / '48_binary_' / f'obj_{P}_full.npy')
@@ -403,25 +413,25 @@ def load_f(obj_type: str, motion: str, spatial_dim: int, P: int) -> np.ndarray:
         p_load = max(P, 32)
         f = np.load(polymer_path / '48_binary_' / f'obj_int_len_{p_load}_int_no_1.npy')
         if P < 32:
-            f = f[..., ::32 // P]
+            f = f[..., :: 32 // P]
 
     elif obj_type == 'polymer_binary_subint_hardest':
         p_load = max(P, 128)
         f = np.load(polymer_path / '48_binary_' / f'obj_int_len_{p_load}_int_no_5.npy')
         if P < 128:
-            f = f[..., ::128 // P]
+            f = f[..., :: 128 // P]
 
     elif obj_type == 'polymer_subint':
         p_load = max(P, 32)
         f = np.load(polymer_path / '48_' / f'obj_int_len_{p_load}_int_no_1.npy')
         if P < 32:
-            f = f[..., ::32 // P]
+            f = f[..., :: 32 // P]
 
     elif obj_type == 'polymer_subint_hardest':
         p_load = max(P, 128)
         f = np.load(polymer_path / '48_' / f'obj_int_len_{p_load}_int_no_5.npy')
         if P < 128:
-            f = f[..., ::128 // P]
+            f = f[..., :: 128 // P]
 
     else:
         raise ValueError(f"Unknown obj_type '{obj_type}'.")
@@ -432,6 +442,7 @@ def load_f(obj_type: str, motion: str, spatial_dim: int, P: int) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Denoiser loading
 # ---------------------------------------------------------------------------
+
 
 class Patchifier(nn.Module):
     """Spatially patchify an image volume and fold patches back.
@@ -466,11 +477,13 @@ class Patchifier(nn.Module):
             Reconstructed image, shape (bs, 1, spatial_dim, spatial_dim),
             normalised by the patch overlap count.
         """
-        patches = patches.contiguous().view(
-            self.bs, patches.shape[0] // self.bs,
-            self.patchSize * self.patchSize).permute(0, 2, 1)
+        patches = (
+            patches.contiguous()
+            .view(self.bs, patches.shape[0] // self.bs, self.patchSize * self.patchSize)
+            .permute(0, 2, 1)
+        )
         x = self.fold(patches)
-        return x / (self.patchSize ** 2 / self.patchStride ** 2)
+        return x / (self.patchSize**2 / self.patchStride**2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Extract patches from a spatial image.
@@ -483,7 +496,8 @@ class Patchifier(nn.Module):
         """
         patches = self.unfold(x).permute(0, 2, 1)
         patches = patches.contiguous().view(
-            self.bs * patches.shape[1], 1, self.patchSize, self.patchSize)
+            self.bs * patches.shape[1], 1, self.patchSize, self.patchSize
+        )
         return patches
 
 
@@ -503,8 +517,8 @@ def denoising_network_loader(
     noise_est_type: str = 'direct',
     epochs: int = 500,
     noise_std: float = 5e-2,
-    lambda_jr: Optional[float] = None,
-) -> tuple[Callable, Optional[Patchifier]]:
+    lambda_jr: float | None = None,
+) -> tuple[Callable, Patchifier | None]:
     """Load a pretrained denoiser network from disk and freeze its parameters.
 
     Constructs the appropriate architecture, resolves the checkpoint path from
@@ -538,15 +552,29 @@ def denoising_network_loader(
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     filter_size = 3
     denoiser_root = 'data/restoration_operator'
-    print('Denoiser info:', train_type, obj_type, noise_est_type,
-          epochs, num_layers, num_channels, '%.1e' % noise_std)
+    print(
+        'Denoiser info:',
+        train_type,
+        obj_type,
+        noise_est_type,
+        epochs,
+        num_layers,
+        num_channels,
+        '%.1e' % noise_std,
+    )
     if lambda_jr is not None:
         print('lambda_jr: %.1e' % lambda_jr)
 
     _network_types = [
-        'unet', 'unet_deblur', 'unet_limited',
-        'dncnn', 'dncnn_oracle', 'dncnn_jreg',
-        'dncnn_deblur', 'dncnn_limited', 'dncnn_limited_deblur',
+        'unet',
+        'unet_deblur',
+        'unet_limited',
+        'dncnn',
+        'dncnn_oracle',
+        'dncnn_jreg',
+        'dncnn_deblur',
+        'dncnn_limited',
+        'dncnn_limited_deblur',
     ]
 
     if train_type in _network_types:
@@ -558,8 +586,7 @@ def denoising_network_loader(
                 else ''
             )
             needs_noise_std = (
-                'polymer_path' in obj_type
-                or 'deblur' in train_type or 'limited' in train_type
+                'polymer_path' in obj_type or 'deblur' in train_type or 'limited' in train_type
             )
             if needs_noise_std:
                 fname = (
@@ -577,11 +604,16 @@ def denoising_network_loader(
             if train_type == 'unet':
                 model_denoiser = models_denoiser.UNet(1, 1, 32).cuda()
             elif train_type in [
-                'dncnn', 'dncnn_jreg', 'dncnn_oracle',
-                'dncnn_deblur', 'dncnn_limited', 'dncnn_limited_deblur',
+                'dncnn',
+                'dncnn_jreg',
+                'dncnn_oracle',
+                'dncnn_deblur',
+                'dncnn_limited',
+                'dncnn_limited_deblur',
             ]:
                 model_denoiser = models_denoiser.dncnn(
-                    num_layers, num_channels, filter_size, noise_est_type).cuda()
+                    num_layers, num_channels, filter_size, noise_est_type
+                ).cuda()
             else:
                 raise NotImplementedError(f"Unsupported train_type '{train_type}'.")
             patchifier_red = None
@@ -594,7 +626,8 @@ def denoising_network_loader(
             )
             model_path = os.path.join(denoiser_root, fname)
             model_denoiser = models_denoiser.dncnn_plinear(
-                num_layers, num_channels, filter_size, noise_est_type).cuda()
+                num_layers, num_channels, filter_size, noise_est_type
+            ).cuda()
             patchifier_red = None
 
         elif denoiser_type == 'patch_based_patchloss':
@@ -606,7 +639,8 @@ def denoising_network_loader(
             )
             model_path = os.path.join(denoiser_root, fname)
             model_denoiser = models_denoiser.dncnnPatchBased_patchLoss(
-                num_layers, num_channels, filter_size, noise_est_type).cuda()
+                num_layers, num_channels, filter_size, noise_est_type
+            ).cuda()
             patchifier_red = Patchifier(pSize, pStride, spatial_dim, 1)
 
         else:
@@ -621,6 +655,7 @@ def denoising_network_loader(
         print(f'{train_type} {denoiser_type}  path: {{{model_path}}}  params: {n_params}')
 
     elif train_type == 'wavelet':
+
         def model_denoiser(x: torch.Tensor) -> torch.Tensor:
             denoised = denoise_wavelet(
                 x.squeeze().detach().cpu().numpy(),
@@ -629,8 +664,8 @@ def denoising_network_loader(
                 mode='soft',
                 rescale_sigma=True,
             )
-            return torch.tensor(
-                np.nan_to_num(denoised), dtype=torch.float32, device=device)
+            return torch.tensor(np.nan_to_num(denoised), dtype=torch.float32, device=device)
+
         patchifier_red = None
 
     else:
@@ -642,6 +677,7 @@ def denoising_network_loader(
 # ---------------------------------------------------------------------------
 # Tomosipo operator and reconstruction
 # ---------------------------------------------------------------------------
+
 
 def tomo_op(
     spatial_dim: int,
@@ -712,8 +748,7 @@ def tomo_recon(
     elif mode == 'TV_min':
         return tv_min2d(R, g, 0.0001, num_iterations=num_iter, min_constraint=0)
     elif mode == 'nag_ls':
-        return nag_ls(R, g, num_iterations=num_iter, min_constraint=0,
-                      l2_regularization=l2_reg)
+        return nag_ls(R, g, num_iterations=num_iter, min_constraint=0, l2_regularization=l2_reg)
     else:
         raise NotImplementedError(f"Unsupported reconstruction mode '{mode}'.")
 
@@ -743,14 +778,15 @@ def obtain_full_recon_cpu(
     f_rec = np.zeros([spatial_dim, spatial_dim, P])
     for t in range(P):
         f_rec[..., t] = iradon(
-            g_np[..., t], theta=360 * theta / (2 * np.pi),
-            filter_name=filt, interpolation=interp)
+            g_np[..., t], theta=360 * theta / (2 * np.pi), filter_name=filt, interpolation=interp
+        )
     return f_rec
 
 
 # ---------------------------------------------------------------------------
 # Coordinate grid
 # ---------------------------------------------------------------------------
+
 
 def _create_yxt_grid(grid_size: tuple[int, int, int]) -> np.ndarray:
     """Create a 3-D mesh grid of normalised spatiotemporal coordinates (matrix indexing).
@@ -766,14 +802,15 @@ def _create_yxt_grid(grid_size: tuple[int, int, int]) -> np.ndarray:
     coords_i = np.linspace(0, 1, h, endpoint=False)
     coords_j = np.linspace(0, 1, w, endpoint=False)
     coords_t = np.linspace(0, 1, P, endpoint=False)
-    return np.stack(
-        np.meshgrid(coords_i, coords_j, coords_t, indexing='ij'), axis=-1
-    ).astype('float32')
+    return np.stack(np.meshgrid(coords_i, coords_j, coords_t, indexing='ij'), axis=-1).astype(
+        'float32'
+    )
 
 
 # ---------------------------------------------------------------------------
 # Positional encoding
 # ---------------------------------------------------------------------------
+
 
 def pos_enc(
     xyt_grid: torch.Tensor,
@@ -782,7 +819,7 @@ def pos_enc(
     mapping_size: int,
     scale: float,
     t_freq_ratio: float,
-) -> tuple[torch.Tensor, int, Optional[nn.Module]]:
+) -> tuple[torch.Tensor, int, nn.Module | None]:
     """Apply a positional encoding to the raw spatiotemporal coordinate grid.
 
     Args:
@@ -799,20 +836,19 @@ def pos_enc(
         model_enc: The encoding module (nn.Module), or None for 'none'.
     """
     if pos_enc_type == 'sine':
-        model_enc = models.SineEncoding(
-            input_dim=3, image_size=spatial_dim).cuda()
+        model_enc = models.SineEncoding(input_dim=3, image_size=spatial_dim).cuda()
         xyt_grid_enc = model_enc(xyt_grid)
         input_ch = 6
     elif pos_enc_type == 'gaussian':
         model_enc = models.GaussianFourierEncoding3D(
-            input_dim=3, image_size=spatial_dim,
-            mapping_size=mapping_size, scale=scale).cuda()
+            input_dim=3, image_size=spatial_dim, mapping_size=mapping_size, scale=scale
+        ).cuda()
         xyt_grid_enc = model_enc(xyt_grid)
         input_ch = 2 * mapping_size
     elif pos_enc_type == 'fourier':
         model_enc = models.FourierEncoding2D_t(
-            input_dim=3, mapping_size=mapping_size,
-            t_freq_ratio=t_freq_ratio).cuda()
+            input_dim=3, mapping_size=mapping_size, t_freq_ratio=t_freq_ratio
+        ).cuda()
         xyt_grid_enc = model_enc(xyt_grid)
         input_ch = 6 * mapping_size
     elif pos_enc_type == 'none':
@@ -827,6 +863,7 @@ def pos_enc(
 # ---------------------------------------------------------------------------
 # Image-quality metrics
 # ---------------------------------------------------------------------------
+
 
 def compute_psnr(x_gt: np.ndarray, x_rec: np.ndarray) -> float:
     """Peak Signal-to-Noise Ratio between a reconstruction and ground truth.
@@ -901,6 +938,7 @@ def compute_hfen(f: np.ndarray, f_est: np.ndarray) -> float:
 # Model utilities
 # ---------------------------------------------------------------------------
 
+
 def count_parameters(model: nn.Module) -> int:
     """Count the total number of trainable parameters in a model.
 
@@ -923,11 +961,9 @@ def compute_grad_norm(model: nn.Module) -> float:
         L2 gradient norm scalar.
     """
     total_sq_norm = sum(
-        p.grad.detach().data.norm(2).item() ** 2
-        for p in model.parameters()
-        if p.requires_grad
+        p.grad.detach().data.norm(2).item() ** 2 for p in model.parameters() if p.requires_grad
     )
-    return total_sq_norm ** 0.5
+    return total_sq_norm**0.5
 
 
 def get_params(net: nn.Module) -> list[torch.Tensor]:
@@ -945,6 +981,7 @@ def get_params(net: nn.Module) -> list[torch.Tensor]:
 # ---------------------------------------------------------------------------
 # Model save / load
 # ---------------------------------------------------------------------------
+
 
 def save_model(
     model: nn.Module,
@@ -986,8 +1023,16 @@ def save_model(
         f'{obj_type}_nlyr_{num_layers}_nch_{num_channels}_enc_{pos_enc_type}'
         f'_mapS_{mapping_size}_sc_{scale}_P_{P}_{embed_model}_tfr_{t_freq_ratio:.3e}.pt'
     )
-    torch.save({'epoch': epoch, 'model': model, 'optimizer': optimizer,
-                'scheduler': scheduler, 'loss': loss}, fname)
+    torch.save(
+        {
+            'epoch': epoch,
+            'model': model,
+            'optimizer': optimizer,
+            'scheduler': scheduler,
+            'loss': loss,
+        },
+        fname,
+    )
 
 
 def save_gauss_enc_model(
@@ -1057,8 +1102,8 @@ def load_model(
         Neural field model with weights loaded from checkpoint.
     """
     model = models.NeuralFieldModel3D_fc(
-        input_ch=input_ch, output_dim=1,
-        num_layers=num_layers, num_channels=num_channels, P=P).cuda()
+        input_ch=input_ch, output_dim=1, num_layers=num_layers, num_channels=num_channels, P=P
+    ).cuda()
     path = Path('data/oracle_init/model/')
     path.mkdir(parents=True, exist_ok=True)
     fname = path / (
@@ -1101,8 +1146,8 @@ def load_model_enc(
         Encoding module with weights loaded from checkpoint.
     """
     model_enc = models.GaussianFourierEncoding3D(
-        input_dim=3, image_size=image_size,
-        mapping_size=mapping_size, scale=scale)
+        input_dim=3, image_size=image_size, mapping_size=mapping_size, scale=scale
+    )
     path = Path('data/oracle_init/model_enc/')
     path.mkdir(parents=True, exist_ok=True)
     fname = path / (
@@ -1152,8 +1197,7 @@ def save_projection_model(
         f'{obj_type}_nlyr_{num_layers}_nch_{num_channels}_enc_{pos_enc_type}'
         f'_mapS_{mapping_size}_sc_{scale}_P_{P}_{embed_model}_tfr_{t_freq_ratio:.3e}.pt'
     )
-    torch.save({'epoch': epoch, 'model': model,
-                'optimizer': optimizer, 'loss': loss}, fname)
+    torch.save({'epoch': epoch, 'model': model, 'optimizer': optimizer, 'loss': loss}, fname)
 
 
 def load_projection_model(
@@ -1188,10 +1232,16 @@ def load_projection_model(
         Projection-domain neural field model loaded from checkpoint.
     """
     model = models.NF3DProjDomain(
-        input_ch=input_ch, output_dim=1,
-        num_layers=num_layers, num_channels=num_channels,
-        spatial_dim=128, P=P, act_type='relu',
-        P_static=P_static, init=embed_model)
+        input_ch=input_ch,
+        output_dim=1,
+        num_layers=num_layers,
+        num_channels=num_channels,
+        spatial_dim=128,
+        P=P,
+        act_type='relu',
+        P_static=P_static,
+        init=embed_model,
+    )
     path = Path('data/oracle_init/model_projection/')
     path.mkdir(parents=True, exist_ok=True)
     fname = path / (
@@ -1215,7 +1265,7 @@ def denoising_network_loader_proj(
     epochs: int = 500,
     P_static: int = 128,
     noise_std_max: float = 5e-2,
-) -> tuple[nn.Module, Optional[Patchifier]]:
+) -> tuple[nn.Module, Patchifier | None]:
     """Load a projection-domain DnCNN denoiser from disk.
 
     Args:
@@ -1254,8 +1304,7 @@ def denoising_network_loader_proj(
                 f'_num_ch_{num_channels}_noise_std_max_{noise_std_max:.2e}.pt'
             )
             model_path = os.path.join(denoiser_root, fname)
-            models_denoiser.dncnn(
-                num_layers, num_channels, filter_size, noise_est_type).cuda()
+            models_denoiser.dncnn(num_layers, num_channels, filter_size, noise_est_type).cuda()
             patchifier_red = None
         else:
             raise NotImplementedError(f"Unsupported denoiser_type '{denoiser_type}'.")

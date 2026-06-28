@@ -17,7 +17,7 @@ def update_metrics(
     metrics: dict[str, list[float]],
     rep: int,
     best_psnr_f_est: float,
-    best_f_est: Optional[np.ndarray],
+    best_f_est: np.ndarray | None,
     model: nn.Module,
 ) -> tuple[dict[str, list[float]], float, np.ndarray]:
     """Append image-quality metrics for both the f-step and NF estimates.
@@ -67,7 +67,7 @@ def update_static_metrics(
     z_est: np.ndarray,
     metrics: dict[str, list[float]],
     best_psnr_f_est: float,
-    best_f_est: Optional[np.ndarray],
+    best_f_est: np.ndarray | None,
 ) -> tuple[dict[str, list[float]], float, np.ndarray]:
     """Append image-quality metrics for the static variable-splitting formulation.
 
@@ -110,7 +110,7 @@ def update_projection_metrics(
     g_nf_est: np.ndarray,
     metrics: dict[str, list[float]],
     best_psnr_g_est: float,
-    best_g_est: Optional[np.ndarray],
+    best_g_est: np.ndarray | None,
 ) -> tuple[dict[str, list[float]], float, np.ndarray]:
     """Append sinogram-domain quality metrics for both the classical and NF estimates.
 
