@@ -18,7 +18,7 @@ The default configuration is for the dynamic walnut object with total number of 
 ## RSR restoration operator
 Pre-trained DnCNN restoration operators for the dynamic walnut object is provided in ```data/restoration_operator```. 
 The denoiser code can be found in ```red_psm_models.py```. 
-If required, denoisers pre-trained on different objects/distributions can also be incorporated using the denoiser definition in ```models.py???```.
+If required, denoisers pre-trained on different objects/distributions can also be incorporated using the denoiser definition in ```models.py```.
 
 ## Forward Model
 Tomographic forward models (measurement operators) for different total number of measurements (32, 64, 128, and 256) and view angle sampling policies: [link](https://drive.google.com/drive/folders/1XxmK7b9QBxA0raMO4ANJN44ccvqUxNTn?usp=sharing). Forward models are expected to be stored in `data/forward_models`.
