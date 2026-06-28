@@ -1,6 +1,6 @@
 # RSR-NF
 
-Implementation of *RSR-NF: Neural Field Regularization by Static Restoration Priors for Dynamic Imaging* ([IEEE MLSP 2025](https://ieeexplore.ieee.org/document/10535218), [arXiv]([https://arxiv.org/abs/2304.03483](https://arxiv.org/pdf/2503.10015)), [Video](https://youtu.be/_Dq---J83Q4?si=rvBiybS3WIgsIGpr))
+Implementation of *RSR-NF: Neural Field Regularization by Static Restoration Priors for Dynamic Imaging* ([IEEE MLSP 2025](https://ieeexplore.ieee.org/document/10535218), [arXiv]([https://arxiv.org/abs/2304.03483](https://arxiv.org/pdf/2503.10015), [Video](https://youtu.be/_Dq---J83Q4?si=rvBiybS3WIgsIGpr))
 
 *Berk Iskender, Sushan Nakarmi, Nitin Daphalapurkar, Marc L. Klasky, Yoram Bresler*
 
