@@ -353,7 +353,7 @@ def load_radon_op(
         if pi_symm else
         'A_radon_spatial_dim_%d_P_%d_bit_reversal' % (spatial_dim, period)
     )
-    R = sp.load_npz(path + stem + '.sparse.npz').toarray().reshape(period, spatial_dim, -1).astype(np.float64)
+    R = sp.load_npz(path + stem + '.sparse.npz').toarray().reshape(period, -1, spatial_dim ** 2).astype(np.float64)
 
     R = np.tile(R, (P // period, 1, 1))
     R_cuda = torch.cuda.FloatTensor(R)
@@ -537,10 +537,7 @@ def denoising_network_loader(
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     filter_size = 3
-    denoiser_root = (
-        '/home/berk/Desktop/spatio_temporal/2D_time_variant_tomography'
-        '/obj_domain_psm/data/denoiser'
-    )
+    denoiser_root = 'data/restoration_operator'
     print('Denoiser info:', train_type, obj_type, noise_est_type,
           epochs, num_layers, num_channels, '%.1e' % noise_std)
     if lambda_jr is not None:

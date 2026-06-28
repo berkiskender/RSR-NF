@@ -411,7 +411,7 @@ def learn_NF_SGD_multiview(
     for epoch in range(num_primal_iter):
         time_idx = np.arange(rep * P) if epoch % (rep * P // sgd_size) == 0 and reg_t_weight != 0 else np.random.choice(np.arange(rep * P), size=sgd_size, replace=False)
         
-        f_nf_est = model(xyt_grid_enc[..., time_idx // rep]).squeeze()
+        f_nf_est = model(xyt_grid_enc[..., time_idx // rep])[0, 0]
         
         # Compute projections from the estimated object
         g_f_est = torch.einsum('pjs,ps->jp', R[time_idx], f_nf_est.permute(2, 0, 1).view(len(time_idx), spatial_dim**2))

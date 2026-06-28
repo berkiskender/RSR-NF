@@ -74,8 +74,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gen_g_all", action='store_true', default=False)
     parser.add_argument("--save_noisy_meas", action='store_true', default=False)
     parser.add_argument("--fwd_model_path", type=str, default='data/forward_models/')
-    parser.add_argument("--data_path", type=str,
-                        default='/home/berk/Desktop/spatio_temporal/2D_time_variant_tomography/obj_domain_psm/data/')
+    parser.add_argument("--data_path", type=str, default='data/')
     parser.add_argument("--rep", type=int, default=1)
     parser.add_argument("--device", type=int, default=0)
     return parser.parse_args()
@@ -134,26 +133,28 @@ def main():
 
     # Compute/Load full set of measurements
     add_path = ''
+    f_pol_path = 'data/f_pol_s/'
     if gen_g_all:
         f_pol_radon, _ = utils.generate_f_pol(
             f, num_frames, spatial_dim, num_meas, theta_exp, obj_type, ang_period,
-            data_path, save=True, add_path=add_path, rep=num_rep)
+            f_pol_path, save=True, add_path=add_path, rep=num_rep)
     else:
         str_period = '' if ang_period is None else '_' + str(ang_period)
         str_rep = '' if num_rep == 1 else '_rep_%d' % num_rep
         f_pol_radon = np.load(
-            data_path + 'f_pol_s_%s%s_%d%s%s.npy' % (obj_type, add_path, num_frames, str_period, str_rep))
+            f_pol_path + 'f_pol_s_%s%s_%d%s%s.npy' % (obj_type, add_path, num_frames, str_period, str_rep))
 
     # Compute/Load measurements with AWGN
+    noisy_meas_path = 'data/noisy_measurements/'
     if save_noisy_meas:
         _, g_symm_long_noisy = utils.add_meas_noise(
             g, g_symm_long, noise_std_cli, f_pol_radon.max(), ang_range, obj_type,
-            num_frames, ang_period, data_path, save=save_noisy_meas, add_path=add_path, rep=num_rep)
+            num_frames, ang_period, noisy_meas_path, save=save_noisy_meas, add_path=add_path, rep=num_rep)
     elif ang_range == np.pi:
         str_period = '' if ang_period is None else '_' + str(ang_period)
         str_rep = '' if num_rep == 1 else '_rep_%d' % num_rep
         g_symm_long_noisy = np.load(
-            data_path + 'g_radon_symm_long_noisy_%s%s_%d%s_noise_std_%.2e%s.npy' % (
+            noisy_meas_path + 'g_radon_symm_long_noisy_%s%s_%d%s_noise_std_%.2e%s.npy' % (
                 obj_type, add_path, num_frames, str_period, noise_std_cli, str_rep))
     else:
         raise NotImplementedError
@@ -281,7 +282,8 @@ def main():
                 spatial_dim=spatial_dim, R=R_cuda, beta=hp.beta, rep=hp.rep,
                 reg_t_weight=hp.reg_t_weight, reg_t_loss_type=hp.reg_t_loss_type,
                 weight_model=hp.weight_model, type_model_reg=hp.type_model_reg,
-                sgd_size=hp.sgd_size)
+                sgd_size=hp.sgd_size
+            )
 
             with torch.no_grad():
                 if hp.reg_mode == 'RED_reg' and (hp.beta != 0 and hp.lmbda != 0):

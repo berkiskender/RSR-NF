@@ -183,7 +183,7 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
         if denoiser_type == 'full_img':
             model_name = 'dncnn'
             model_path = os.path.join(
-                'data/denoiser',
+                'data/restoration_operator',
                 model_name + '_model_%s_%s_epochs_%d_num_layers_%d_num_ch_%d.pt' % (
                     obj_type, noise_est_type, epochs, num_layers, num_channels))
             model_dncnn = models_denoiser.dncnn(
@@ -192,7 +192,7 @@ def denoising_network_loader(train_type, denoiser_type, pSize, pStride,
         elif denoiser_type == 'patch_based_patchloss':
             model_name = 'dncnn_patchbased_patchloss'
             model_path = os.path.join(
-                'data/denoiser',
+                'data/restoration_operator',
                 model_name + '_model_%s_%s_num_layers_%d_patch_size_%d_patch_stride_%d_num_ch_%d_epochs_%d.pt' % (
                     obj_type, noise_est_type, num_layers, pSize, pStride,
                     num_channels, epochs))
